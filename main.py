@@ -33,6 +33,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 TOKEN = "8722268472:AAEgcBPD0m1jWjP_5WjXN9z080U9v2BT20c"
+MANAGER_USERNAME = "azizbek_mebel" # O'zingizning Telegram username'ingizni shu yerga yozing (@ belgisiz)
 
 (
     ADD_CAT, ADD_PHOTO, ADD_DESC, 
@@ -234,6 +235,7 @@ async def user_catalog_click(update: Update, context: ContextTypes.DEFAULT_TYPE)
     
     lang = get_current_lang()
     back_text = "Назад" if lang == "ru" else "Orqaga"
+    order_text = "🛒 Buyurtma berish" if lang != "ru" else "🛒 Заказать"
     
     conn = sqlite3.connect("furniture_bot.db")
     cursor = conn.cursor()
@@ -258,34 +260,38 @@ async def user_catalog_click(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await context.bot.send_message(chat_id=query.message.chat_id, text=msg, reply_markup=back_kb)
         return
         
-    limit = 5
+    limit = 10
     start_idx = page * limit
     end_idx = start_idx + limit
     page_products = products[start_idx:end_idx]
     
+    order_btn = InlineKeyboardButton(order_text, url=f"https://t.me/{MANAGER_USERNAME}")
+    
     for p in page_products:
-        _, desc, photo = p[0], p[1], p[2]
-        caption = desc if desc else None 
+        title, desc, photo = p[0], p[1], p[2]
+        caption = f"<b>{title}</b>"
+        if desc:
+            caption += f"\n\n{desc}"
+            
+        item_kb = InlineKeyboardMarkup([[order_btn]])
         
         if photo:
-            await context.bot.send_photo(chat_id=query.message.chat_id, photo=photo, caption=caption, parse_mode="HTML")
-        elif caption:
-            await context.bot.send_message(chat_id=query.message.chat_id, text=caption, parse_mode="HTML", disable_web_page_preview=True)
+            await context.bot.send_photo(chat_id=query.message.chat_id, photo=photo, caption=caption, parse_mode="HTML", reply_markup=item_kb)
+        else:
+            await context.bot.send_message(chat_id=query.message.chat_id, text=caption, parse_mode="HTML", disable_web_page_preview=True, reply_markup=item_kb)
             
-    nav_buttons = []
-    if page > 0:
-        prev_text = "⬅️ Oldingi" if lang != "ru" else "⬅️ Назад"
-        nav_buttons.append(InlineKeyboardButton(prev_text, callback_data=f"ucat_{cat}_{page-1}"))
-        
+    # Raqamli sahifalash tugmalari (1, 2, 3...)
     total_pages = (len(products) + limit - 1) // limit
-    page_info = f"{page+1}/{total_pages}"
-    nav_buttons.append(InlineKeyboardButton(page_info, callback_data="noop"))
-    
-    if end_idx < len(products):
-        next_text = "Keyingi ➡️" if lang != "ru" else "Вперед ➡️"
-        nav_buttons.append(InlineKeyboardButton(next_text, callback_data=f"ucat_{cat}_{page+1}"))
+    page_buttons = []
+    for i in range(total_pages):
+        btn_text = f"• {i+1} •" if i == page else str(i+1)
+        page_buttons.append(InlineKeyboardButton(btn_text, callback_data=f"ucat_{cat}_{i}"))
         
-    keyboard_layout = [nav_buttons, [InlineKeyboardButton(f"⬅️ {back_text}", callback_data=back_callback)]]
+    keyboard_layout = []
+    if len(page_buttons) > 1:
+        keyboard_layout.append(page_buttons)
+        
+    keyboard_layout.append([InlineKeyboardButton(f"⬅️ {back_text}", callback_data=back_callback)])
     
     await context.bot.send_message(
         chat_id=query.message.chat_id, 
@@ -395,7 +401,9 @@ async def user_color_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         back_callback = "main_colors"
 
-    back_kb = InlineKeyboardMarkup([[InlineKeyboardButton("Назад" if lang == "ru" else "Orqaga", callback_data=back_callback)]])
+    back_text_str = "Назад" if lang == "ru" else "Orqaga"
+    order_text = "🛒 Buyurtma berish" if lang != "ru" else "🛒 Заказать"
+    back_kb = InlineKeyboardMarkup([[InlineKeyboardButton(back_text_str, callback_data=back_callback)]])
     
     if not colors:
         msg = f"Для раздела '{selected_brand}' цвета еще не добавлены." if lang == "ru" else f"'{selected_brand}' bo'limi uchun ranglar hali kiritilmagan."
@@ -407,32 +415,33 @@ async def user_color_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
     end_idx = start_idx + limit
     page_colors = colors[start_idx:end_idx]
     
+    order_btn = InlineKeyboardButton(order_text, url=f"https://t.me/{MANAGER_USERNAME}")
+
     for c in page_colors:
         c_name, photo = c[0], c[1]
-        
-        caption = None
+        caption = f"🎨 Раздел: <b>{selected_brand}</b>" if lang == "ru" else f"🎨 Bo'lim: <b>{selected_brand}</b>"
         if c_name:
-            caption = f"Kod/Nomi: <b>{c_name}</b>" if lang != "ru" else f"Код/Название: <b>{c_name}</b>"
+            caption += f"\nКод/Название: <b>{c_name}</b>" if lang == "ru" else f"\nRang nomi/kodi: <b>{c_name}</b>"
             
+        item_kb = InlineKeyboardMarkup([[order_btn]])
+        
         if photo:
-            await context.bot.send_photo(chat_id=query.message.chat_id, photo=photo, caption=caption, parse_mode="HTML")
-        elif caption:
-            await context.bot.send_message(chat_id=query.message.chat_id, text=caption, parse_mode="HTML")
+            await context.bot.send_photo(chat_id=query.message.chat_id, photo=photo, caption=caption, parse_mode="HTML", reply_markup=item_kb)
+        else:
+            await context.bot.send_message(chat_id=query.message.chat_id, text=caption, parse_mode="HTML", reply_markup=item_kb)
             
-    nav_buttons = []
-    if page > 0:
-        prev_text = "⬅️ Oldingi" if lang != "ru" else "⬅️ Назад"
-        nav_buttons.append(InlineKeyboardButton(prev_text, callback_data=f"ucol_{brand_clean_query}_{page-1}"))
-        
+    # Raqamli sahifalash (1, 2, 3...)
     total_pages = (len(colors) + limit - 1) // limit
-    page_info = f"{page+1}/{total_pages}"
-    nav_buttons.append(InlineKeyboardButton(page_info, callback_data="noop"))
-    
-    if end_idx < len(colors):
-        next_text = "Keyingi ➡️" if lang != "ru" else "Вперед ➡️"
-        nav_buttons.append(InlineKeyboardButton(next_text, callback_data=f"ucol_{brand_clean_query}_{page+1}"))
+    page_buttons = []
+    for i in range(total_pages):
+        btn_text = f"• {i+1} •" if i == page else str(i+1)
+        page_buttons.append(InlineKeyboardButton(btn_text, callback_data=f"ucol_{brand_clean_query}_{i}"))
         
-    keyboard_layout = [nav_buttons, [InlineKeyboardButton("Назад" if lang == "ru" else "Orqaga", callback_data=back_callback)]]
+    keyboard_layout = []
+    if len(page_buttons) > 1:
+        keyboard_layout.append(page_buttons)
+        
+    keyboard_layout.append([InlineKeyboardButton(back_text_str, callback_data=back_callback)])
     
     await context.bot.send_message(chat_id=query.message.chat_id, text="Sahifani tanlang:" if lang != "ru" else "Выберите страницу:", reply_markup=InlineKeyboardMarkup(keyboard_layout))
 
@@ -737,7 +746,7 @@ async def add_color_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
     await update.message.reply_text(
         "🎨 Rang nomi yoki kodini yuboring (masalan: #FFFFFF yoki W1000 ST9).\n"
-        "Agar matn yozishni xohlamasangiz, o'tkazib yuborishingiz mumkin:",
+        "Agar yozishni xohlamasangiz, o'tkazib yuborishingiz mumkin:",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
     return ADD_COLOR_NAME
@@ -861,7 +870,6 @@ async def admin_add_prod(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except:
         pass
     await context.bot.send_message(chat_id=query.message.chat_id, text="Mahsulot qo'shish uchun kategoriyani tanlang:", reply_markup=InlineKeyboardMarkup(keyboard))
-    return ADD_CAT
 
 async def admin_add_prod_yotoqxona(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -870,14 +878,13 @@ async def admin_add_prod_yotoqxona(update: Update, context: ContextTypes.DEFAULT
         [InlineKeyboardButton("🛏 Kattalar yotoqxonasi", callback_data="cat_Kattalar_yotoqxonasi")],
         [InlineKeyboardButton("🧸 Bolalar yotoqxonasi", callback_data="cat_Bolalar_yotoqxonasi")],
         [InlineKeyboardButton("🚪 Shkaf kupe / Garderob", callback_data="cat_Shkaf_kupe_garderob")],
-        [InlineKeyboardButton("⬅️ Orqaga", callback_data="admin_add_prod_back")]
+        [InlineKeyboardButton("⬅️ Orqaga", callback_data="admin_add_prod")]
     ]
     try:
         await query.message.delete()
     except:
         pass
     await context.bot.send_message(chat_id=query.message.chat_id, text="Yotoqxona turini tanlang:", reply_markup=InlineKeyboardMarkup(keyboard))
-    return ADD_CAT
 
 async def add_prod_cat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -907,8 +914,8 @@ async def add_prod_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("⬅️ Orqaga", callback_data="admin_add_prod")]
     ]
     await update.message.reply_text(
-        "📝 Mahsulot uchun matn yuboring (masalan: narxi, o'lchami).\n"
-        "Agar matn yozishni xohlamasangiz, quyidagi tugmani bosing (matn chiqmaydi):",
+        "📝 Mahsulot uchun ixtiyoriy matn yuboring (masalan: nomi, narxi, o'lchami).\n"
+        "Agar matn yozishni xohlamasangiz, quyidagi tugmani bosing:",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
     return ADD_DESC
@@ -921,7 +928,7 @@ async def add_prod_desc_text(update: Update, context: ContextTypes.DEFAULT_TYPE)
     conn = sqlite3.connect("furniture_bot.db")
     cursor = conn.cursor()
     cursor.execute("INSERT INTO products (category, title, description, photo) VALUES (?, ?, ?, ?)",
-                   (cat, "", desc, photo))
+                   (cat, "Mahsulot", desc, photo))
     conn.commit()
     conn.close()
     
@@ -938,7 +945,7 @@ async def add_prod_desc_skip(update: Update, context: ContextTypes.DEFAULT_TYPE)
     conn = sqlite3.connect("furniture_bot.db")
     cursor = conn.cursor()
     cursor.execute("INSERT INTO products (category, title, description, photo) VALUES (?, ?, ?, ?)",
-                   (cat, "", "", photo))
+                   (cat, "Mahsulot", "", photo))
     conn.commit()
     conn.close()
     
@@ -1128,7 +1135,6 @@ if __name__ == "__main__":
         states={
             ADD_CAT: [
                 CallbackQueryHandler(admin_add_prod_yotoqxona, pattern="^acat_yotoqxona_menu$"),
-                CallbackQueryHandler(admin_add_prod, pattern="^admin_add_prod_back$"),
                 CallbackQueryHandler(add_prod_cat, pattern="^cat_"),
                 CallbackQueryHandler(back_to_admin, pattern="^back_to_admin$")
             ],
