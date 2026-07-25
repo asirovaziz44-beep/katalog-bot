@@ -77,7 +77,7 @@ def init_db():
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_products_cat ON products(category)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_colors_brand ON colors(brand)")
     
-    default_brands = ["Stoleshnitsa", "Akril (Umumiy)", "Akril: Kashtan", "Akril: Kastaman", "MDF / LDSP", "Yeger Premium"]
+    default_brands = ["Stoleshnitsa", "Akril: Kashtan", "Akril: Kastaman", "MDF / LDSP", "Yeger Premium"]
     for b in default_brands:
         cursor.execute("INSERT OR IGNORE INTO brands (brand_name) VALUES (?)", (b,))
         
@@ -105,16 +105,14 @@ def main_menu_keyboard(lang="uz"):
             [InlineKeyboardButton("📁 Каталог", callback_data="main_catalog"),
              InlineKeyboardButton("🎨 Цвета / Бренды", callback_data="main_colors")],
             [InlineKeyboardButton("📞 Контакты", callback_data="main_info"),
-             InlineKeyboardButton("🌐 Язык", callback_data="main_lang")],
-            [InlineKeyboardButton("🔄 Обновить / Старт", callback_data="back_to_main")]
+             InlineKeyboardButton("🌐 Язык", callback_data="main_lang")]
         ]
     else:
         keyboard = [
             [InlineKeyboardButton("📁 Katalog", callback_data="main_catalog"),
              InlineKeyboardButton("🎨 Ranglar / Brendlar", callback_data="main_colors")],
             [InlineKeyboardButton("📞 Aloqa", callback_data="main_info"),
-             InlineKeyboardButton("🌐 Til", callback_data="main_lang")],
-            [InlineKeyboardButton("🔄 Yangilash / Start", callback_data="back_to_main")]
+             InlineKeyboardButton("🌐 Til", callback_data="main_lang")]
         ]
     return InlineKeyboardMarkup(keyboard)
 
@@ -339,15 +337,13 @@ async def user_akril_submenu(update: Update, context: ContextTypes.DEFAULT_TYPE)
     
     if lang == "ru":
         keyboard = [
-            [InlineKeyboardButton("✨ Акрил (Общий)", callback_data="ucol_Akril_Umumiy_0")],
             [InlineKeyboardButton("🔷 Акрил: Каштан", callback_data="ucol_Akril_Kashtan_0"),
-             InlineKeyboardButton("🔶 Акрил: Кастаману", callback_data="ucol_Akril_Kastamanu_0")],
+             InlineKeyboardButton("🔶 Акрил: Кастаман", callback_data="ucol_Akril_Kastaman_0")],
             [InlineKeyboardButton("⬅️ Назад", callback_data="main_colors")]
         ]
         cap = "Выберите раздел акрила:"
     else:
         keyboard = [
-            [InlineKeyboardButton("✨ Akril (Umumiy)", callback_data="ucol_Akril_Umumiy_0")],
             [InlineKeyboardButton("🔷 Akril: Kashtan", callback_data="ucol_Akril_Kashtan_0"),
              InlineKeyboardButton("🔶 Akril: Kastaman", callback_data="ucol_Akril_Kastaman_0")],
             [InlineKeyboardButton("⬅️ Orqaga", callback_data="main_colors")]
