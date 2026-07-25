@@ -235,11 +235,10 @@ async def user_catalog_click(update: Update, context: ContextTypes.DEFAULT_TYPE)
     
     lang = get_current_lang()
     back_text = "Назад" if lang == "ru" else "Orqaga"
-    order_text = "🛒 Buyurtma berish" if lang != "ru" else "🛒 Заказать"
     
     conn = sqlite3.connect("furniture_bot.db")
     cursor = conn.cursor()
-    cursor.execute("SELECT title, description, photo FROM products WHERE category = ?", (cat,))
+    cursor.execute("SELECT description, photo FROM products WHERE category = ?", (cat,))
     products = cursor.fetchall()
     conn.close()
     
@@ -265,20 +264,18 @@ async def user_catalog_click(update: Update, context: ContextTypes.DEFAULT_TYPE)
     end_idx = start_idx + limit
     page_products = products[start_idx:end_idx]
     
-    order_btn = InlineKeyboardButton(order_text, url=f"https://t.me/{MANAGER_USERNAME}")
-    
     for p in page_products:
-        title, desc, photo = p[0], p[1], p[2]
-        caption = f"<b>{title}</b>"
-        if desc:
-            caption += f"\n\n{desc}"
+        desc, photo = p[0], p[1]
+        caption = desc if desc else ""
             
-        item_kb = InlineKeyboardMarkup([[order_btn]])
-        
         if photo:
-            await context.bot.send_photo(chat_id=query.message.chat_id, photo=photo, caption=caption, parse_mode="HTML", reply_markup=item_kb)
+            if caption:
+                await context.bot.send_photo(chat_id=query.message.chat_id, photo=photo, caption=caption, parse_mode="HTML")
+            else:
+                await context.bot.send_photo(chat_id=query.message.chat_id, photo=photo)
         else:
-            await context.bot.send_message(chat_id=query.message.chat_id, text=caption, parse_mode="HTML", disable_web_page_preview=True, reply_markup=item_kb)
+            if caption:
+                await context.bot.send_message(chat_id=query.message.chat_id, text=caption, parse_mode="HTML", disable_web_page_preview=True)
             
     total_pages = (len(products) + limit - 1) // limit
     page_buttons = []
@@ -401,7 +398,6 @@ async def user_color_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
         back_callback = "main_colors"
 
     back_text_str = "Назад" if lang == "ru" else "Orqaga"
-    order_text = "🛒 Buyurtma berish" if lang != "ru" else "🛒 Заказать"
     back_kb = InlineKeyboardMarkup([[InlineKeyboardButton(back_text_str, callback_data=back_callback)]])
     
     if not colors:
@@ -413,8 +409,6 @@ async def user_color_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
     start_idx = page * limit
     end_idx = start_idx + limit
     page_colors = colors[start_idx:end_idx]
-    
-    order_btn = InlineKeyboardButton(order_text, url=f"https://t.me/{MANAGER_USERNAME}")
 
     for c in page_colors:
         c_name, photo = c[0], c[1]
@@ -422,12 +416,10 @@ async def user_color_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if c_name:
             caption += f"\nКод/Название: <b>{c_name}</b>" if lang == "ru" else f"\nRang nomi/kodi: <b>{c_name}</b>"
             
-        item_kb = InlineKeyboardMarkup([[order_btn]])
-        
         if photo:
-            await context.bot.send_photo(chat_id=query.message.chat_id, photo=photo, caption=caption, parse_mode="HTML", reply_markup=item_kb)
+            await context.bot.send_photo(chat_id=query.message.chat_id, photo=photo, caption=caption, parse_mode="HTML")
         else:
-            await context.bot.send_message(chat_id=query.message.chat_id, text=caption, parse_mode="HTML", reply_markup=item_kb)
+            await context.bot.send_message(chat_id=query.message.chat_id, text=caption, parse_mode="HTML")
             
     total_pages = (len(colors) + limit - 1) // limit
     page_buttons = []
@@ -868,7 +860,6 @@ async def admin_add_prod(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except:
         pass
     await context.bot.send_message(chat_id=query.message.chat_id, text="Mahsulot qo'shish uchun kategoriyani tanlang:", reply_markup=InlineKeyboardMarkup(keyboard))
-    return ADD_CAT
 
 async def admin_add_prod_yotoqxona(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -884,7 +875,6 @@ async def admin_add_prod_yotoqxona(update: Update, context: ContextTypes.DEFAULT
     except:
         pass
     await context.bot.send_message(chat_id=query.message.chat_id, text="Yotoqxona turini tanlang:", reply_markup=InlineKeyboardMarkup(keyboard))
-    return ADD_CAT
 
 async def add_prod_cat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -928,7 +918,7 @@ async def add_prod_desc_text(update: Update, context: ContextTypes.DEFAULT_TYPE)
     conn = sqlite3.connect("furniture_bot.db")
     cursor = conn.cursor()
     cursor.execute("INSERT INTO products (category, title, description, photo) VALUES (?, ?, ?, ?)",
-                   (cat, "Mahsulot", desc, photo))
+                   (cat, "", desc, photo))
     conn.commit()
     conn.close()
     
@@ -945,7 +935,7 @@ async def add_prod_desc_skip(update: Update, context: ContextTypes.DEFAULT_TYPE)
     conn = sqlite3.connect("furniture_bot.db")
     cursor = conn.cursor()
     cursor.execute("INSERT INTO products (category, title, description, photo) VALUES (?, ?, ?, ?)",
-                   (cat, "Mahsulot", "", photo))
+                   (cat, "", "", photo))
     conn.commit()
     conn.close()
     
@@ -1136,8 +1126,7 @@ if __name__ == "__main__":
             ADD_CAT: [
                 CallbackQueryHandler(admin_add_prod_yotoqxona, pattern="^acat_yotoqxona_menu$"),
                 CallbackQueryHandler(add_prod_cat, pattern="^cat_"),
-                CallbackQueryHandler(back_to_admin, pattern="^back_to_admin$"),
-                CallbackQueryHandler(admin_add_prod, pattern="^admin_add_prod$")
+                CallbackQueryHandler(back_to_admin, pattern="^back_to_admin$")
             ],
             ADD_PHOTO: [
                 MessageHandler(filters.PHOTO, add_prod_photo),
