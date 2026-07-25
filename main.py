@@ -80,7 +80,7 @@ def init_db():
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_products_cat ON products(category)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_colors_brand ON colors(brand)")
     
-    default_brands = ["Stoleshnitsa", "Akril", "MDF", "LDSP", "Yeger Premium"]
+    default_brands = ["Stoleshnitsa", "Akril", "MDF / LDSP", "Yeger Premium"]
     for b in default_brands:
         cursor.execute("INSERT OR IGNORE INTO brands (brand_name) VALUES (?)", (b,))
         
@@ -210,7 +210,6 @@ async def user_yotoqxona_submenu(update: Update, context: ContextTypes.DEFAULT_T
             [InlineKeyboardButton("🛏 Спальня для взрослых", callback_data="ucat_Kattalar_yotoqxonasi")],
             [InlineKeyboardButton("🧸 Детская спальня", callback_data="ucat_Bolalar_yotoqxonasi")],
             [InlineKeyboardButton("🚪 Шкаф-купе / Гардероб", callback_data="ucat_Shkaf_kupe_garderob")],
-            [InlineKeyboardButton("🗄 MDF / ЛДСП (Спальня)", callback_data="subcat_mdf_ldsp")],
             [InlineKeyboardButton("⬅️ Назад", callback_data="main_catalog")]
         ]
         caption_text = "Выберите раздел спальни:"
@@ -219,37 +218,9 @@ async def user_yotoqxona_submenu(update: Update, context: ContextTypes.DEFAULT_T
             [InlineKeyboardButton("🛏 Kattalar yotoqxonasi", callback_data="ucat_Kattalar_yotoqxonasi")],
             [InlineKeyboardButton("🧸 Bolalar yotoqxonasi", callback_data="ucat_Bolalar_yotoqxonasi")],
             [InlineKeyboardButton("🚪 Shkaf kupe / Garderob", callback_data="ucat_Shkaf_kupe_garderob")],
-            [InlineKeyboardButton("🗄 MDF / LDSP (Yotoqxona)", callback_data="subcat_mdf_ldsp")],
             [InlineKeyboardButton("⬅️ Orqaga", callback_data="main_catalog")]
         ]
         caption_text = "Yotoqxona bo'limini tanlang:"
-        
-    try:
-        await query.message.delete()
-    except:
-        pass
-    await context.bot.send_message(chat_id=query.message.chat_id, text=caption_text, reply_markup=InlineKeyboardMarkup(keyboard))
-
-# Yotoqxona ichidagi MDF / LDSP tugmasi uchun funksiya
-async def user_mdf_ldsp_submenu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    lang = get_current_lang()
-    
-    if lang == "ru":
-        keyboard = [
-            [InlineKeyboardButton("🗄 МДФ (Спальня)", callback_data="ucat_MDF_yotoq")],
-            [InlineKeyboardButton("🚪 ЛДСП (Спальня)", callback_data="ucat_LDSP_yotoq")],
-            [InlineKeyboardButton("⬅️ Назад", callback_data="subcat_yotoqxona")]
-        ]
-        caption_text = "Выберите материал для спальни:"
-    else:
-        keyboard = [
-            [InlineKeyboardButton("🗄 MDF (Yotoqxona)", callback_data="ucat_MDF_yotoq")],
-            [InlineKeyboardButton("🚪 LDSP (Yotoqxona)", callback_data="ucat_LDSP_yotoq")],
-            [InlineKeyboardButton("⬅️ Orqaga", callback_data="subcat_yotoqxona")]
-        ]
-        caption_text = "Materialni tanlang:"
         
     try:
         await query.message.delete()
@@ -279,7 +250,7 @@ async def user_catalog_click(update: Update, context: ContextTypes.DEFAULT_TYPE)
     except:
         pass
 
-    if cat in ["Kattalar_yotoqxonasi", "Bolalar_yotoqxonasi", "Shkaf_kupe_garderob", "MDF_yotoq", "LDSP_yotoq"]:
+    if cat in ["Kattalar_yotoqxonasi", "Bolalar_yotoqxonasi", "Shkaf_kupe_garderob"]:
         back_callback = "subcat_yotoqxona"
     else:
         back_callback = "main_catalog"
@@ -337,8 +308,7 @@ async def user_colors_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         keyboard = [
             [InlineKeyboardButton("🪵 Столешница", callback_data="ucol_Stoleshnitsa_0")],
             [InlineKeyboardButton("✨ Акрил", callback_data="ucol_Akril_0")],
-            [InlineKeyboardButton("🗄 МДФ", callback_data="ucol_MDF_0"),
-             InlineKeyboardButton("🚪 ЛДСП", callback_data="ucol_LDSP_0")],
+            [InlineKeyboardButton("🗄 МДФ / ЛДСП", callback_data="ucol_MDF_LDSP_0")],
             [InlineKeyboardButton("⭐ Yeger Premium", callback_data="ucol_Yeger_Premium_0")],
             [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_main")]
         ]
@@ -347,8 +317,7 @@ async def user_colors_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         keyboard = [
             [InlineKeyboardButton("🪵 Stoleshnitsa", callback_data="ucol_Stoleshnitsa_0")],
             [InlineKeyboardButton("✨ Akril", callback_data="ucol_Akril_0")],
-            [InlineKeyboardButton("🗄 MDF", callback_data="ucol_MDF_0"),
-             InlineKeyboardButton("🚪 LDSP", callback_data="ucol_LDSP_0")],
+            [InlineKeyboardButton("🗄 MDF / LDSP", callback_data="ucol_MDF_LDSP_0")],
             [InlineKeyboardButton("⭐ Yeger premium", callback_data="ucol_Yeger_Premium_0")],
             [InlineKeyboardButton("⬅️ Orqaga", callback_data="back_to_main")]
         ]
@@ -737,7 +706,7 @@ async def add_color_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("⬅️ Orqaga", callback_data="acolor_start")]
     ]
     await update.message.reply_text(
-        "🎨 Rang nomi yoki kodini yuboring (masalan: #FFFFFF või W1000 ST9).\n"
+        "🎨 Rang nomi yoki kodini yuboring (masalan: #FFFFFF yoki W1000 ST9).\n"
         "Agar yozishni xohlamasangiz, o'tkazib yuborishingiz mumkin:",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
@@ -870,8 +839,6 @@ async def admin_add_prod_yotoqxona(update: Update, context: ContextTypes.DEFAULT
         [InlineKeyboardButton("🛏 Kattalar yotoqxonasi", callback_data="cat_Kattalar_yotoqxonasi")],
         [InlineKeyboardButton("🧸 Bolalar yotoqxonasi", callback_data="cat_Bolalar_yotoqxonasi")],
         [InlineKeyboardButton("🚪 Shkaf kupe / Garderob", callback_data="cat_Shkaf_kupe_garderob")],
-        [InlineKeyboardButton("🗄 MDF (Yotoqxona)", callback_data="cat_MDF_yotoq")],
-        [InlineKeyboardButton("🚪 LDSP (Yotoqxona)", callback_data="cat_LDSP_yotoq")],
         [InlineKeyboardButton("⬅️ Orqaga", callback_data="admin_add_prod")]
     ]
     try:
@@ -1152,7 +1119,6 @@ if __name__ == "__main__":
     application.add_handlers([
         CallbackQueryHandler(user_catalog_menu, pattern="^main_catalog$"),
         CallbackQueryHandler(user_yotoqxona_submenu, pattern="^subcat_yotoqxona$"),
-        CallbackQueryHandler(user_mdf_ldsp_submenu, pattern="^subcat_mdf_ldsp$"),
         CallbackQueryHandler(user_catalog_click, pattern="^ucat_"),
         CallbackQueryHandler(user_colors_menu, pattern="^main_colors$"),
         CallbackQueryHandler(user_color_click, pattern="^ucol_"),
