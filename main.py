@@ -173,20 +173,20 @@ async def user_catalog_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if lang == "ru":
         keyboard = [
             [InlineKeyboardButton("🛏 Спальня", callback_data="subcat_yotoqxona")],
-            [InlineKeyboardButton("🍳 Кухня", callback_data="ucat_Oshxona"),
-             InlineKeyboardButton("🛋 Мягкая мебель", callback_data="ucat_Yumshoq_mebel")],
-            [InlineKeyboardButton("🚪 Прихожая", callback_data="ucat_Koridor"),
-             InlineKeyboardButton("📺 ТВ зона", callback_data="ucat_TV_zona")],
+            [InlineKeyboardButton("🍳 Кухня", callback_data="ucat_Oshxona_0"),
+             InlineKeyboardButton("🛋 Мягкая мебель", callback_data="ucat_Yumshoq_mebel_0")],
+            [InlineKeyboardButton("🚪 Прихожая", callback_data="ucat_Koridor_0"),
+             InlineKeyboardButton("📺 ТВ зона", callback_data="ucat_TV_zona_0")],
             [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_main")]
         ]
         caption_text = "Выберите категорию:"
     else:
         keyboard = [
             [InlineKeyboardButton("🛏 Yotoqxona", callback_data="subcat_yotoqxona")],
-            [InlineKeyboardButton("🍳 Oshxona", callback_data="ucat_Oshxona"),
-             InlineKeyboardButton("🛋 Yumshoq mebel", callback_data="ucat_Yumshoq_mebel")],
-            [InlineKeyboardButton("🚪 Koridor", callback_data="ucat_Koridor"),
-             InlineKeyboardButton("📺 TV zona", callback_data="ucat_TV_zona")],
+            [InlineKeyboardButton("🍳 Oshxona", callback_data="ucat_Oshxona_0"),
+             InlineKeyboardButton("🛋 Yumshoq mebel", callback_data="ucat_Yumshoq_mebel_0")],
+            [InlineKeyboardButton("🚪 Koridor", callback_data="ucat_Koridor_0"),
+             InlineKeyboardButton("📺 TV zona", callback_data="ucat_TV_zona_0")],
             [InlineKeyboardButton("⬅️ Orqaga", callback_data="back_to_main")]
         ]
         caption_text = "Kategoriyani tanlang:"
@@ -204,17 +204,17 @@ async def user_yotoqxona_submenu(update: Update, context: ContextTypes.DEFAULT_T
     
     if lang == "ru":
         keyboard = [
-            [InlineKeyboardButton("🛏 Спальня для взрослых", callback_data="ucat_Kattalar_yotoqxonasi")],
-            [InlineKeyboardButton("🧸 Детская спальня", callback_data="ucat_Bolalar_yotoqxonasi")],
-            [InlineKeyboardButton("🚪 Шкаф-купе / Гардероб", callback_data="ucat_Shkaf_kupe_garderob")],
+            [InlineKeyboardButton("🛏 Спальня для взрослых", callback_data="ucat_Kattalar_yotoqxonasi_0")],
+            [InlineKeyboardButton("🧸 Детская спальня", callback_data="ucat_Bolalar_yotoqxonasi_0")],
+            [InlineKeyboardButton("🚪 Шкаф-купе / Гардероб", callback_data="ucat_Shkaf_kupe_garderob_0")],
             [InlineKeyboardButton("⬅️ Назад", callback_data="main_catalog")]
         ]
         caption_text = "Выберите раздел спальни:"
     else:
         keyboard = [
-            [InlineKeyboardButton("🛏 Kattalar yotoqxonasi", callback_data="ucat_Kattalar_yotoqxonasi")],
-            [InlineKeyboardButton("🧸 Bolalar yotoqxonasi", callback_data="ucat_Bolalar_yotoqxonasi")],
-            [InlineKeyboardButton("🚪 Shkaf kupe / Garderob", callback_data="ucat_Shkaf_kupe_garderob")],
+            [InlineKeyboardButton("🛏 Kattalar yotoqxonasi", callback_data="ucat_Kattalar_yotoqxonasi_0")],
+            [InlineKeyboardButton("🧸 Bolalar yotoqxonasi", callback_data="ucat_Bolalar_yotoqxonasi_0")],
+            [InlineKeyboardButton("🚪 Shkaf kupe / Garderob", callback_data="ucat_Shkaf_kupe_garderob_0")],
             [InlineKeyboardButton("⬅️ Orqaga", callback_data="main_catalog")]
         ]
         caption_text = "Yotoqxona bo'limini tanlang:"
@@ -230,8 +230,12 @@ async def user_catalog_click(update: Update, context: ContextTypes.DEFAULT_TYPE)
     await query.answer()
     
     data_parts = query.data.split("_")
-    cat = data_parts[1]
-    page = int(data_parts[2]) if len(data_parts) > 2 else 0
+    if data_parts[-1].isdigit():
+        page = int(data_parts[-1])
+        cat = "_".join(data_parts[1:-1])
+    else:
+        page = 0
+        cat = "_".join(data_parts[1:])
     
     lang = get_current_lang()
     back_text = "Назад" if lang == "ru" else "Orqaga"
