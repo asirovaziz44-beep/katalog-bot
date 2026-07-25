@@ -175,8 +175,7 @@ async def user_catalog_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if lang == "ru":
         keyboard = [
-            [InlineKeyboardButton("🛏 Спальня для взрослых", callback_data="ucat_Kattalar_yotoqxonasi")],
-            [InlineKeyboardButton("🧸 Детская спальня", callback_data="ucat_Bolalar_yotoqxonasi")],
+            [InlineKeyboardButton("🛏 Спальня", callback_data="subcat_yotoqxona")],
             [InlineKeyboardButton("🚪 Шкаф-купе", callback_data="ucat_Shkaf_kupe"),
              InlineKeyboardButton("👔 Гардероб", callback_data="ucat_Garderob")],
             [InlineKeyboardButton("🍳 Кухня", callback_data="ucat_Oshxona"),
@@ -188,8 +187,7 @@ async def user_catalog_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         caption_text = "Выберите категорию:"
     else:
         keyboard = [
-            [InlineKeyboardButton("🛏 Kattalar yotoqxonasi", callback_data="ucat_Kattalar_yotoqxonasi")],
-            [InlineKeyboardButton("🧸 Bolalar yotoqxonasi", callback_data="ucat_Bolalar_yotoqxonasi")],
+            [InlineKeyboardButton("🛏 Yotoqxona", callback_data="subcat_yotoqxona")],
             [InlineKeyboardButton("🚪 Shkaf kupe", callback_data="ucat_Shkaf_kupe"),
              InlineKeyboardButton("👔 Garderob", callback_data="ucat_Garderob")],
             [InlineKeyboardButton("🍳 Oshxona", callback_data="ucat_Oshxona"),
@@ -199,6 +197,32 @@ async def user_catalog_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton("⬅️ Orqaga", callback_data="back_to_main")]
         ]
         caption_text = "Kategoriyani tanlang:"
+        
+    try:
+        await query.message.delete()
+    except:
+        pass
+    await context.bot.send_message(chat_id=query.message.chat_id, text=caption_text, reply_markup=InlineKeyboardMarkup(keyboard))
+
+async def user_yotoqxona_submenu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    lang = get_current_lang()
+    
+    if lang == "ru":
+        keyboard = [
+            [InlineKeyboardButton("🛏 Спальня для взрослых", callback_data="ucat_Kattalar_yotoqxonasi")],
+            [InlineKeyboardButton("🧸 Детская спальня", callback_data="ucat_Bolalar_yotoqxonasi")],
+            [InlineKeyboardButton("⬅️ Назад", callback_data="main_catalog")]
+        ]
+        caption_text = "Выберите раздел спальни:"
+    else:
+        keyboard = [
+            [InlineKeyboardButton("🛏 Kattalar yotoqxonasi", callback_data="ucat_Kattalar_yotoqxonasi")],
+            [InlineKeyboardButton("🧸 Bolalar yotoqxonasi", callback_data="ucat_Bolalar_yotoqxonasi")],
+            [InlineKeyboardButton("⬅️ Orqaga", callback_data="main_catalog")]
+        ]
+        caption_text = "Yotoqxona bo'limini tanlang:"
         
     try:
         await query.message.delete()
@@ -228,7 +252,13 @@ async def user_catalog_click(update: Update, context: ContextTypes.DEFAULT_TYPE)
     except:
         pass
 
-    back_kb = InlineKeyboardMarkup([[InlineKeyboardButton(f"⬅️ {back_text}", callback_data="main_catalog")]])
+    # Agar kategoriya yotoqxonaga tegishli bo'lsa, Orqaga tugmasi yotoqxona quyi menyusiga qaytaradi
+    if cat in ["Kattalar_yotoqxonasi", "Bolalar_yotoqxonasi"]:
+        back_callback = "subcat_yotoqxona"
+    else:
+        back_callback = "main_catalog"
+
+    back_kb = InlineKeyboardMarkup([[InlineKeyboardButton(f"⬅️ {back_text}", callback_data=back_callback)]])
 
     if not products:
         msg = "В этой категории пока нет товаров." if lang == "ru" else f"Hozircha bu bo'limda mahsulotlar yo'q."
@@ -263,7 +293,7 @@ async def user_catalog_click(update: Update, context: ContextTypes.DEFAULT_TYPE)
         next_text = "Keyingi ➡️" if lang != "ru" else "Вперед ➡️"
         nav_buttons.append(InlineKeyboardButton(next_text, callback_data=f"ucat_{cat}_{page+1}"))
         
-    keyboard_layout = [nav_buttons, [InlineKeyboardButton(f"⬅️ {back_text}", callback_data="main_catalog")]]
+    keyboard_layout = [nav_buttons, [InlineKeyboardButton(f"⬅️ {back_text}", callback_data=back_callback)]]
     
     await context.bot.send_message(
         chat_id=query.message.chat_id, 
@@ -795,8 +825,7 @@ async def admin_add_prod(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     keyboard = [
-        [InlineKeyboardButton("🛏 Kattalar yotoqxonasi", callback_data="cat_Kattalar_yotoqxonasi")],
-        [InlineKeyboardButton("🧸 Bolalar yotoqxonasi", callback_data="cat_Bolalar_yotoqxonasi")],
+        [InlineKeyboardButton("🛏 Yotoqxona (Barchasi)", callback_data="acat_yotoqxona_menu")],
         [InlineKeyboardButton("🚪 Shkaf kupe", callback_data="cat_Shkaf_kupe"),
          InlineKeyboardButton("👔 Garderob", callback_data="cat_Garderob")],
         [InlineKeyboardButton("🍳 Oshxona", callback_data="cat_Oshxona"),
@@ -810,7 +839,20 @@ async def admin_add_prod(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except:
         pass
     await context.bot.send_message(chat_id=query.message.chat_id, text="Mahsulot qo'shish uchun kategoriyani tanlang:", reply_markup=InlineKeyboardMarkup(keyboard))
-    return ADD_CAT
+
+async def admin_add_prod_yotoqxona(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    keyboard = [
+        [InlineKeyboardButton("🛏 Kattalar yotoqxonasi", callback_data="cat_Kattalar_yotoqxonasi")],
+        [InlineKeyboardButton("🧸 Bolalar yotoqxonasi", callback_data="cat_Bolalar_yotoqxonasi")],
+        [InlineKeyboardButton("⬅️ Orqaga", callback_data="admin_add_prod")]
+    ]
+    try:
+        await query.message.delete()
+    except:
+        pass
+    await context.bot.send_message(chat_id=query.message.chat_id, text="Yotoqxona turini tanlang:", reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def add_prod_cat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -1060,6 +1102,7 @@ if __name__ == "__main__":
         entry_points=[CallbackQueryHandler(admin_add_prod, pattern="^admin_add_prod$")],
         states={
             ADD_CAT: [
+                CallbackQueryHandler(admin_add_prod_yotoqxona, pattern="^acat_yotoqxona_menu$"),
                 CallbackQueryHandler(add_prod_cat, pattern="^cat_"),
                 CallbackQueryHandler(back_to_admin, pattern="^back_to_admin$")
             ],
@@ -1082,6 +1125,7 @@ if __name__ == "__main__":
 
     application.add_handlers([
         CallbackQueryHandler(user_catalog_menu, pattern="^main_catalog$"),
+        CallbackQueryHandler(user_yotoqxona_submenu, pattern="^subcat_yotoqxona$"),
         CallbackQueryHandler(user_catalog_click, pattern="^ucat_"),
         CallbackQueryHandler(user_colors_menu, pattern="^main_colors$"),
         CallbackQueryHandler(user_color_click, pattern="^ucol_"),
