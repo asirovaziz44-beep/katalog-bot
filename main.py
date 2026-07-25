@@ -263,7 +263,7 @@ async def user_catalog_click(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await context.bot.send_message(chat_id=query.message.chat_id, text=msg, reply_markup=back_kb)
         return
         
-    limit = 10
+    limit = 5
     start_idx = page * limit
     end_idx = start_idx + limit
     page_products = products[start_idx:end_idx]
