@@ -1096,7 +1096,7 @@ if __name__ == "__main__":
         CallbackQueryHandler(set_lang, pattern="^set_lang_"),
         CallbackQueryHandler(back_to_main, pattern="^back_to_main$")
     ])
-
+    keep_alive()
     print("Bot muvaffaqiyatli ishga tushdi...")
     application.run_polling()
-     keep_alive()
+   
