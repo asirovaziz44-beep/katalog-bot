@@ -33,7 +33,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 TOKEN = "8722268472:AAEgcBPD0m1jWjP_5WjXN9z080U9v2BT20c"
-MANAGER_USERNAME = "azizbek_mebel" # O'zingizning Telegram username'ingizni shu yerga yozing (@ belgisiz)
+MANAGER_USERNAME = "azizbek_mebel"
 
 (
     ADD_CAT, ADD_PHOTO, ADD_DESC, 
@@ -260,7 +260,7 @@ async def user_catalog_click(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await context.bot.send_message(chat_id=query.message.chat_id, text=msg, reply_markup=back_kb)
         return
         
-    limit = 10
+    limit = 5
     start_idx = page * limit
     end_idx = start_idx + limit
     page_products = products[start_idx:end_idx]
@@ -280,7 +280,6 @@ async def user_catalog_click(update: Update, context: ContextTypes.DEFAULT_TYPE)
         else:
             await context.bot.send_message(chat_id=query.message.chat_id, text=caption, parse_mode="HTML", disable_web_page_preview=True, reply_markup=item_kb)
             
-    # Raqamli sahifalash tugmalari (1, 2, 3...)
     total_pages = (len(products) + limit - 1) // limit
     page_buttons = []
     for i in range(total_pages):
@@ -430,7 +429,6 @@ async def user_color_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             await context.bot.send_message(chat_id=query.message.chat_id, text=caption, parse_mode="HTML", reply_markup=item_kb)
             
-    # Raqamli sahifalash (1, 2, 3...)
     total_pages = (len(colors) + limit - 1) // limit
     page_buttons = []
     for i in range(total_pages):
@@ -870,6 +868,7 @@ async def admin_add_prod(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except:
         pass
     await context.bot.send_message(chat_id=query.message.chat_id, text="Mahsulot qo'shish uchun kategoriyani tanlang:", reply_markup=InlineKeyboardMarkup(keyboard))
+    return ADD_CAT
 
 async def admin_add_prod_yotoqxona(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -885,6 +884,7 @@ async def admin_add_prod_yotoqxona(update: Update, context: ContextTypes.DEFAULT
     except:
         pass
     await context.bot.send_message(chat_id=query.message.chat_id, text="Yotoqxona turini tanlang:", reply_markup=InlineKeyboardMarkup(keyboard))
+    return ADD_CAT
 
 async def add_prod_cat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -1136,7 +1136,8 @@ if __name__ == "__main__":
             ADD_CAT: [
                 CallbackQueryHandler(admin_add_prod_yotoqxona, pattern="^acat_yotoqxona_menu$"),
                 CallbackQueryHandler(add_prod_cat, pattern="^cat_"),
-                CallbackQueryHandler(back_to_admin, pattern="^back_to_admin$")
+                CallbackQueryHandler(back_to_admin, pattern="^back_to_admin$"),
+                CallbackQueryHandler(admin_add_prod, pattern="^admin_add_prod$")
             ],
             ADD_PHOTO: [
                 MessageHandler(filters.PHOTO, add_prod_photo),
