@@ -265,7 +265,7 @@ async def user_catalog_click(update: Update, context: ContextTypes.DEFAULT_TYPE)
     
     for p in page_products:
         _, desc, photo = p[0], p[1], p[2]
-        caption = desc if desc else None  # Faqat matn kiritilgan bo'lsagina chiqadi
+        caption = desc if desc else None 
         
         if photo:
             await context.bot.send_photo(chat_id=query.message.chat_id, photo=photo, caption=caption, parse_mode="HTML")
@@ -410,7 +410,6 @@ async def user_color_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for c in page_colors:
         c_name, photo = c[0], c[1]
         
-        # Agar rang nomi kiritilgan bo'lsa chiqariladi, bo'sh bo'lsa matn chiqmaydi
         caption = None
         if c_name:
             caption = f"Kod/Nomi: <b>{c_name}</b>" if lang != "ru" else f"Код/Название: <b>{c_name}</b>"
@@ -862,6 +861,7 @@ async def admin_add_prod(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except:
         pass
     await context.bot.send_message(chat_id=query.message.chat_id, text="Mahsulot qo'shish uchun kategoriyani tanlang:", reply_markup=InlineKeyboardMarkup(keyboard))
+    return ADD_CAT
 
 async def admin_add_prod_yotoqxona(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -870,13 +870,14 @@ async def admin_add_prod_yotoqxona(update: Update, context: ContextTypes.DEFAULT
         [InlineKeyboardButton("🛏 Kattalar yotoqxonasi", callback_data="cat_Kattalar_yotoqxonasi")],
         [InlineKeyboardButton("🧸 Bolalar yotoqxonasi", callback_data="cat_Bolalar_yotoqxonasi")],
         [InlineKeyboardButton("🚪 Shkaf kupe / Garderob", callback_data="cat_Shkaf_kupe_garderob")],
-        [InlineKeyboardButton("⬅️ Orqaga", callback_data="admin_add_prod")]
+        [InlineKeyboardButton("⬅️ Orqaga", callback_data="admin_add_prod_back")]
     ]
     try:
         await query.message.delete()
     except:
         pass
     await context.bot.send_message(chat_id=query.message.chat_id, text="Yotoqxona turini tanlang:", reply_markup=InlineKeyboardMarkup(keyboard))
+    return ADD_CAT
 
 async def add_prod_cat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -1127,6 +1128,7 @@ if __name__ == "__main__":
         states={
             ADD_CAT: [
                 CallbackQueryHandler(admin_add_prod_yotoqxona, pattern="^acat_yotoqxona_menu$"),
+                CallbackQueryHandler(admin_add_prod, pattern="^admin_add_prod_back$"),
                 CallbackQueryHandler(add_prod_cat, pattern="^cat_"),
                 CallbackQueryHandler(back_to_admin, pattern="^back_to_admin$")
             ],
