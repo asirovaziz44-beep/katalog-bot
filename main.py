@@ -105,14 +105,16 @@ def main_menu_keyboard(lang="uz"):
             [InlineKeyboardButton("📁 Каталог", callback_data="main_catalog"),
              InlineKeyboardButton("🎨 Цвета / Бренды", callback_data="main_colors")],
             [InlineKeyboardButton("📞 Контакты", callback_data="main_info"),
-             InlineKeyboardButton("🌐 Язык", callback_data="main_lang")]
+             InlineKeyboardButton("🌐 Язык", callback_data="main_lang")],
+            [InlineKeyboardButton("🔄 Обновить бота", callback_data="refresh_bot")]
         ]
     else:
         keyboard = [
             [InlineKeyboardButton("📁 Katalog", callback_data="main_catalog"),
              InlineKeyboardButton("🎨 Ranglar / Brendlar", callback_data="main_colors")],
             [InlineKeyboardButton("📞 Aloqa", callback_data="main_info"),
-             InlineKeyboardButton("🌐 Til", callback_data="main_lang")]
+             InlineKeyboardButton("🌐 Til", callback_data="main_lang")],
+            [InlineKeyboardButton("🔄 Botni yangilash", callback_data="refresh_bot")]
         ]
     return InlineKeyboardMarkup(keyboard)
 
@@ -163,6 +165,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await context.bot.send_photo(chat_id=chat_id, photo=logo_file_id, caption=text, reply_markup=kb)
     else:
         await context.bot.send_message(chat_id=chat_id, text=text, reply_markup=kb)
+
+# --- BOTNI YANGILASH FUNKSIYASI ---
+async def refresh_bot(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer("Bot ma'lumotlari yangilandi!", show_alert=False)
+    await start(update, context)
 
 # --- USER: KATALOG ---
 async def user_catalog_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -756,7 +764,6 @@ async def add_color_name_text(update: Update, context: ContextTypes.DEFAULT_TYPE
     conn.commit()
     conn.close()
     
-    # Rasmni saqlab bo'lgach, foydalanuvchiga yana rasm qo'shish yoki yakunlash imkonini beramiz
     keyboard = [
         [InlineKeyboardButton("➕ Yana rasm qo'shish", callback_data=f"abrand_{get_brand_id(brand)}")],
         [InlineKeyboardButton("✅ Yakunlash (Asosiy menyu)", callback_data="finish_adding_colors")]
@@ -960,7 +967,6 @@ async def add_prod_desc_text(update: Update, context: ContextTypes.DEFAULT_TYPE)
     conn.commit()
     conn.close()
     
-    # Rasm va matn saqlangach, foydalanuvchiga yana rasm qo'shish yoki tugatishni taklif qilamiz
     keyboard = [
         [InlineKeyboardButton("➕ Yana rasm qo'shish", callback_data=f"cat_{cat}")],
         [InlineKeyboardButton("✅ Yakunlash (Asosiy menyu)", callback_data="finish_adding_products")]
@@ -1219,6 +1225,8 @@ if __name__ == "__main__":
         CallbackQueryHandler(main_info, pattern="^main_info$"),
         CallbackQueryHandler(main_lang, pattern="^main_lang$"),
         CallbackQueryHandler(set_lang, pattern="^set_lang_"),
+        # Botni yangilash uchun handler qo'shildi:
+        CallbackQueryHandler(refresh_bot, pattern="^refresh_bot$"),
         CallbackQueryHandler(back_to_main, pattern="^back_to_main$")
     ])
     
