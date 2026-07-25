@@ -1,4 +1,20 @@
-import logging
+from flask import Flask
+from threading import Thread
+
+app = Flask('')
+
+@app.route('/')
+def home():
+    return "Bot ishlayapti!"
+
+def run():
+    app.run(host='0.0.0.0', port=8080)
+
+def keep_alive():
+    t = Thread(target=run)
+    t.start()
+
+ import logging
 import sqlite3
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
@@ -1083,3 +1099,4 @@ if __name__ == "__main__":
 
     print("Bot muvaffaqiyatli ishga tushdi...")
     application.run_polling()
+     keep_alive()
