@@ -80,7 +80,7 @@ def init_db():
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_products_cat ON products(category)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_colors_brand ON colors(brand)")
     
-    default_brands = ["Stoleshnitsa", "Akril", "MDF / LDSP", "Yeger Premium"]
+    default_brands = ["Stoleshnitsa", "Akril", "Akril: Kashtan", "Akril: Kastaman", "MDF / LDSP", "Yeger Premium"]
     for b in default_brands:
         cursor.execute("INSERT OR IGNORE INTO brands (brand_name) VALUES (?)", (b,))
         
@@ -307,7 +307,9 @@ async def user_colors_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if lang == "ru":
         keyboard = [
             [InlineKeyboardButton("🪵 Столешница", callback_data="ucol_Stoleshnitsa_0")],
-            [InlineKeyboardButton("✨ Акрил", callback_data="ucol_Akril_0")],
+            [InlineKeyboardButton("✨ Акрил (Общий)", callback_data="ucol_Akril_0")],
+            [InlineKeyboardButton("🔹 Акрил: Каштан", callback_data="ucol_Akril_Kashtan_0"),
+             InlineKeyboardButton("🔸 Акрил: Кастаман", callback_data="ucol_Akril_Kastamanu_0")],
             [InlineKeyboardButton("🗄 МДФ / ЛДСП", callback_data="ucol_MDF_LDSP_0")],
             [InlineKeyboardButton("⭐ Yeger Premium", callback_data="ucol_Yeger_Premium_0")],
             [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_main")]
@@ -316,7 +318,9 @@ async def user_colors_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         keyboard = [
             [InlineKeyboardButton("🪵 Stoleshnitsa", callback_data="ucol_Stoleshnitsa_0")],
-            [InlineKeyboardButton("✨ Akril", callback_data="ucol_Akril_0")],
+            [InlineKeyboardButton("✨ Akril (Umumiy)", callback_data="ucol_Akril_0")],
+            [InlineKeyboardButton("🔹 Akril: Kashtan", callback_data="ucol_Akril_Kashtan_0"),
+             InlineKeyboardButton("🔸 Akril: Kastaman", callback_data="ucol_Akril_Kastaman_0")],
             [InlineKeyboardButton("🗄 MDF / LDSP", callback_data="ucol_MDF_LDSP_0")],
             [InlineKeyboardButton("⭐ Yeger premium", callback_data="ucol_Yeger_Premium_0")],
             [InlineKeyboardButton("⬅️ Orqaga", callback_data="back_to_main")]
