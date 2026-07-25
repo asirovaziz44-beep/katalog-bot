@@ -234,7 +234,6 @@ async def user_catalog_click(update: Update, context: ContextTypes.DEFAULT_TYPE)
     
     data_parts = query.data.split("_")
     cat = data_parts[1]
-    # Agar oxirgi qism raqam bo'lsa sahifa deb olamiz, aks holda 0
     if len(data_parts) > 2 and data_parts[2].isdigit():
         page = int(data_parts[2])
     else:
@@ -348,7 +347,7 @@ async def user_akril_submenu(update: Update, context: ContextTypes.DEFAULT_TYPE)
     else:
         keyboard = [
             [InlineKeyboardButton("🔹 Akril: Kashtan", callback_data="ucol_Akril_Kashtan_0")],
-            [InlineKeyboardButton("🔸 Akril: Kastamanu", callback_data="ucol_Akril_Kastamanu_0")],
+            [InlineKeyboardButton("🔸 Akril: Kastaman", callback_data="ucol_Akril_Kastaman_0")],
             [InlineKeyboardButton("⬅️ Orqaga", callback_data="main_colors")]
         ]
         cap = "Akril bo'limini tanlang:"
@@ -927,6 +926,7 @@ async def add_prod_desc_text(update: Update, context: ContextTypes.DEFAULT_TYPE)
     conn.close()
     
     lang = get_current_lang()
+    # Eslatma: reply_markup=main_menu_keyboard(lang) ga o'zgarganda xabar ostida inline menyu chiqadi
     await update.message.reply_text(f"✅ {cat} bo'limiga mahsulot muvaffaqiyatli qo'shildi!", reply_markup=main_menu_keyboard(lang))
     return ConversationHandler.END
 
