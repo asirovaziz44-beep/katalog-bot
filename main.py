@@ -108,14 +108,16 @@ def main_menu_keyboard(lang="uz"):
             [InlineKeyboardButton("📁 Каталог", callback_data="main_catalog"),
              InlineKeyboardButton("🎨 Цвета / Бренды", callback_data="main_colors")],
             [InlineKeyboardButton("📞 Контакты", callback_data="main_info"),
-             InlineKeyboardButton("🌐 Язык", callback_data="main_lang")]
+             InlineKeyboardButton("🌐 Язык", callback_data="main_lang")],
+            [InlineKeyboardButton("🔄 Обновить бот", callback_data="refresh_bot")]
         ]
     else:
         keyboard = [
             [InlineKeyboardButton("📁 Katalog", callback_data="main_catalog"),
              InlineKeyboardButton("🎨 Ranglar / Brendlar", callback_data="main_colors")],
             [InlineKeyboardButton("📞 Aloqa", callback_data="main_info"),
-             InlineKeyboardButton("🌐 Til", callback_data="main_lang")]
+             InlineKeyboardButton("🌐 Til", callback_data="main_lang")],
+            [InlineKeyboardButton("🔄 Botni yangilash", callback_data="refresh_bot")]
         ]
     return InlineKeyboardMarkup(keyboard)
 
@@ -166,6 +168,14 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await context.bot.send_photo(chat_id=chat_id, photo=logo_file_id, caption=text, reply_markup=kb)
     else:
         await context.bot.send_message(chat_id=chat_id, text=text, reply_markup=kb)
+
+# --- BOTNI YANGILASH HANDLERI ---
+async def refresh_bot_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    lang = get_current_lang()
+    alert_text = "🔄 Бот успешно обновлен!" if lang == "ru" else "🔄 Bot muvaffaqiyatli yangilandi!"
+    await query.answer(alert_text, show_alert=True)
+    await start(update, context)
 
 # --- USER: KATALOG ---
 async def user_catalog_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -926,7 +936,6 @@ async def add_prod_desc_text(update: Update, context: ContextTypes.DEFAULT_TYPE)
     conn.close()
     
     lang = get_current_lang()
-    # Eslatma: reply_markup=main_menu_keyboard(lang) ga o'zgarganda xabar ostida inline menyu chiqadi
     await update.message.reply_text(f"✅ {cat} bo'limiga mahsulot muvaffaqiyatli qo'shildi!", reply_markup=main_menu_keyboard(lang))
     return ConversationHandler.END
 
@@ -1070,6 +1079,9 @@ if __name__ == "__main__":
     application.add_handler(CallbackQueryHandler(admin_stats, pattern="^admin_stats$"))
     application.add_handler(CallbackQueryHandler(admin_brands_menu, pattern="^admin_brands_menu$"))
     application.add_handler(CallbackQueryHandler(noop_handler, pattern="^noop$"))
+    
+    # Botni yangilash handleri qo'shildi
+    application.add_handler(CallbackQueryHandler(refresh_bot_callback, pattern="^refresh_bot$"))
 
     logo_handler = ConversationHandler(
         entry_points=[CallbackQueryHandler(admin_logo_start, pattern="^admin_logo$")],
