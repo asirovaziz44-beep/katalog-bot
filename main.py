@@ -77,8 +77,7 @@ def init_db():
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_products_cat ON products(category)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_colors_brand ON colors(brand)")
     
-    # "Akril (Umumiy)" olib tashlandi
-    default_brands = ["Stoleshnitsa", "Akril: Kashtan", "Akril: Kastaman", "MDF / LDSP", "Yeger Premium"]
+    default_brands = ["Stoleshnitsa", "Akril (Umumiy)", "Akril: Kashtan", "Akril: Kastaman", "MDF / LDSP", "Yeger Premium"]
     for b in default_brands:
         cursor.execute("INSERT OR IGNORE INTO brands (brand_name) VALUES (?)", (b,))
         
@@ -336,9 +335,9 @@ async def user_akril_submenu(update: Update, context: ContextTypes.DEFAULT_TYPE)
     await query.answer()
     lang = get_current_lang()
     
-    # "Akril (Umumiy)" tugmasi olib tashlandi
     if lang == "ru":
         keyboard = [
+            [InlineKeyboardButton("✨ Акрил (Общий)", callback_data="ucol_Akril_Umumiy_0")],
             [InlineKeyboardButton("🔷 Акрил: Каштан", callback_data="ucol_Akril_Kashtan_0"),
              InlineKeyboardButton("🔶 Акрил: Кастаман", callback_data="ucol_Akril_Kastaman_0")],
             [InlineKeyboardButton("⬅️ Назад", callback_data="main_colors")]
@@ -346,6 +345,7 @@ async def user_akril_submenu(update: Update, context: ContextTypes.DEFAULT_TYPE)
         cap = "Выберите раздел акрила:"
     else:
         keyboard = [
+            [InlineKeyboardButton("✨ Akril (Umumiy)", callback_data="ucol_Akril_Umumiy_0")],
             [InlineKeyboardButton("🔷 Akril: Kashtan", callback_data="ucol_Akril_Kashtan_0"),
              InlineKeyboardButton("🔶 Akril: Kastaman", callback_data="ucol_Akril_Kastaman_0")],
             [InlineKeyboardButton("⬅️ Orqaga", callback_data="main_colors")]
@@ -727,7 +727,7 @@ async def add_color_brand(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['color_brand'] = brand_name
     
     reply_kb = InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Orqaga", callback_data="acolor_start")]])
-    text = f"Tanlandi: {brand_name}\n\n📸 Endi material / rang namunasining rasmini yuboring (yoki Orqaga tugmasini bosing):"
+    text = f"Tanlandi: {brand_name}\n\n📸 Endi material / rang namunasining rasmini yuboring:"
     await context.bot.send_message(chat_id=query.message.chat_id, text=text, reply_markup=reply_kb)
     return ADD_COLOR_PHOTO
 
@@ -756,9 +756,13 @@ async def add_color_name_text(update: Update, context: ContextTypes.DEFAULT_TYPE
     conn.commit()
     conn.close()
     
-    lang = get_current_lang()
-    await update.message.reply_text("✅ Rang/material muvaffaqiyatli qo'shildi!", reply_markup=main_menu_keyboard(lang))
-    return ConversationHandler.END
+    # Rasmni saqlab bo'lgach, foydalanuvchiga yana rasm qo'shish yoki yakunlash imkonini beramiz
+    keyboard = [
+        [InlineKeyboardButton("➕ Yana rasm qo'shish", callback_data=f"abrand_{get_brand_id(brand)}")],
+        [InlineKeyboardButton("✅ Yakunlash (Asosiy menyu)", callback_data="finish_adding_colors")]
+    ]
+    await update.message.reply_text("✅ Rang/material muvaffaqiyatli saqlandi! Yana rasm qo'shasizmi yoki yakunlaysizmi?", reply_markup=InlineKeyboardMarkup(keyboard))
+    return ADD_COLOR_PHOTO
 
 async def add_color_name_skip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -776,8 +780,31 @@ async def add_color_name_skip(update: Update, context: ContextTypes.DEFAULT_TYPE
         await query.message.delete()
     except:
         pass
+        
+    keyboard = [
+        [InlineKeyboardButton("➕ Yana rasm qo'shish", callback_data=f"abrand_{get_brand_id(brand)}")],
+        [InlineKeyboardButton("✅ Yakunlash (Asosiy menyu)", callback_data="finish_adding_colors")]
+    ]
+    await context.bot.send_message(chat_id=query.message.chat_id, text="✅ Rang/material muvaffaqiyatli saqlandi! Yana rasm qo'shasizmi?", reply_markup=InlineKeyboardMarkup(keyboard))
+    return ADD_COLOR_PHOTO
+
+def get_brand_id(brand_name):
+    conn = sqlite3.connect("furniture_bot.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT id FROM brands WHERE brand_name = ?", (brand_name,))
+    res = cursor.fetchone()
+    conn.close()
+    return res[0] if res else 1
+
+async def finish_adding_colors(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    try:
+        await query.message.delete()
+    except:
+        pass
     lang = get_current_lang()
-    await context.bot.send_message(chat_id=query.message.chat_id, text="✅ Rang/material muvaffaqiyatli qo'shildi!\nAsosiy menyu:", reply_markup=main_menu_keyboard(lang))
+    await context.bot.send_message(chat_id=query.message.chat_id, text="✅ Barcha rasmlar yuklandi!", reply_markup=main_menu_keyboard(lang))
     return ConversationHandler.END
 
 async def admin_logo_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -911,7 +938,7 @@ async def add_prod_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['prod_photo'] = update.message.photo[-1].file_id
     
     keyboard = [
-        [InlineKeyboardButton("⏭ O'tkazib yuborish", callback_data="skip_desc")],
+        [InlineKeyboardButton("⏭ O'tkazib yuborish (Matnsiz)", callback_data="skip_desc")],
         [InlineKeyboardButton("⬅️ Orqaga", callback_data="admin_add_prod")]
     ]
     await update.message.reply_text(
@@ -933,9 +960,13 @@ async def add_prod_desc_text(update: Update, context: ContextTypes.DEFAULT_TYPE)
     conn.commit()
     conn.close()
     
-    lang = get_current_lang()
-    await update.message.reply_text("✅ Mahsulot muvaffaqiyatli qo'shildi!", reply_markup=main_menu_keyboard(lang))
-    return ConversationHandler.END
+    # Rasm va matn saqlangach, foydalanuvchiga yana rasm qo'shish yoki tugatishni taklif qilamiz
+    keyboard = [
+        [InlineKeyboardButton("➕ Yana rasm qo'shish", callback_data=f"cat_{cat}")],
+        [InlineKeyboardButton("✅ Yakunlash (Asosiy menyu)", callback_data="finish_adding_products")]
+    ]
+    await update.message.reply_text("✅ Mahsulot muvaffaqiyatli saqlandi! Yana rasm qo'shasizmi?", reply_markup=InlineKeyboardMarkup(keyboard))
+    return ADD_PHOTO
 
 async def add_prod_desc_skip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -954,8 +985,23 @@ async def add_prod_desc_skip(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await query.message.delete()
     except:
         pass
+        
+    keyboard = [
+        [InlineKeyboardButton("➕ Yana rasm qo'shish", callback_data=f"cat_{cat}")],
+        [InlineKeyboardButton("✅ Yakunlash (Asosiy menyu)", callback_data="finish_adding_products")]
+    ]
+    await context.bot.send_message(chat_id=query.message.chat_id, text="✅ Mahsulot muvaffaqiyatli saqlandi! Yana rasm qo'shasizmi?", reply_markup=InlineKeyboardMarkup(keyboard))
+    return ADD_PHOTO
+
+async def finish_adding_products(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    try:
+        await query.message.delete()
+    except:
+        pass
     lang = get_current_lang()
-    await context.bot.send_message(chat_id=query.message.chat_id, text="✅ Mahsulot muvaffaqiyatli qo'shildi!\nAsosiy menyu:", reply_markup=main_menu_keyboard(lang))
+    await context.bot.send_message(chat_id=query.message.chat_id, text="✅ Barcha mahsulotlar yuklandi!", reply_markup=main_menu_keyboard(lang))
     return ConversationHandler.END
 
 # --- RASMLARni ID VA SAHIFA BILAN KO'RIB CHIQIB O'CHIRISH ---
@@ -1119,6 +1165,8 @@ if __name__ == "__main__":
             ADD_BRAND_MENU: [CallbackQueryHandler(add_color_brand, pattern="^abrand_")],
             ADD_COLOR_PHOTO: [
                 MessageHandler(filters.PHOTO, add_color_photo),
+                CallbackQueryHandler(add_color_brand, pattern="^abrand_"),
+                CallbackQueryHandler(finish_adding_colors, pattern="^finish_adding_colors$"),
                 CallbackQueryHandler(add_color_start, pattern="^acolor_start$")
             ],
             ADD_COLOR_NAME: [
@@ -1142,6 +1190,8 @@ if __name__ == "__main__":
             ],
             ADD_PHOTO: [
                 MessageHandler(filters.PHOTO, add_prod_photo),
+                CallbackQueryHandler(add_prod_cat, pattern="^cat_"),
+                CallbackQueryHandler(finish_adding_products, pattern="^finish_adding_products$"),
                 CallbackQueryHandler(admin_add_prod, pattern="^admin_add_prod$"),
                 CallbackQueryHandler(back_to_admin, pattern="^back_to_admin$")
             ],
@@ -1171,6 +1221,8 @@ if __name__ == "__main__":
         CallbackQueryHandler(set_lang, pattern="^set_lang_"),
         CallbackQueryHandler(back_to_main, pattern="^back_to_main$")
     ])
+    
     keep_alive()
+    
     print("Bot muvaffaqiyatli ishga tushdi...")
     application.run_polling()
