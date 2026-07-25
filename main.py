@@ -234,7 +234,11 @@ async def user_catalog_click(update: Update, context: ContextTypes.DEFAULT_TYPE)
     
     data_parts = query.data.split("_")
     cat = data_parts[1]
-    page = int(data_parts[2]) if len(data_parts) > 2 else 0
+    # Agar oxirgi qism raqam bo'lsa sahifa deb olamiz, aks holda 0
+    if len(data_parts) > 2 and data_parts[2].isdigit():
+        page = int(data_parts[2])
+    else:
+        page = 0
     
     lang = get_current_lang()
     back_text = "Назад" if lang == "ru" else "Orqaga"
