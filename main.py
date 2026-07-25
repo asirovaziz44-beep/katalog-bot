@@ -77,6 +77,7 @@ def init_db():
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_products_cat ON products(category)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_colors_brand ON colors(brand)")
     
+    # "Akril (Umumiy)" olib tashlandi
     default_brands = ["Stoleshnitsa", "Akril: Kashtan", "Akril: Kastaman", "MDF / LDSP", "Yeger Premium"]
     for b in default_brands:
         cursor.execute("INSERT OR IGNORE INTO brands (brand_name) VALUES (?)", (b,))
@@ -335,6 +336,7 @@ async def user_akril_submenu(update: Update, context: ContextTypes.DEFAULT_TYPE)
     await query.answer()
     lang = get_current_lang()
     
+    # "Akril (Umumiy)" tugmasi olib tashlandi
     if lang == "ru":
         keyboard = [
             [InlineKeyboardButton("🔷 Акрил: Каштан", callback_data="ucol_Akril_Kashtan_0"),
