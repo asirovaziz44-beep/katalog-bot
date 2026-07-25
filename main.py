@@ -393,7 +393,6 @@ async def user_color_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
     colors = cursor.fetchall()
     conn.close()
     
-    # Agar tanlangan brend Akril kichik bo'limlaridan biri bo'lsa, Orqaga tugmasi Akril ichki menusiga qaytadi
     back_target = "subcat_akril" if "Akril" in selected_brand else "main_colors"
     back_kb = InlineKeyboardMarkup([[InlineKeyboardButton("Назад" if lang == "ru" else "Orqaga", callback_data=back_target)]])
     
@@ -859,6 +858,7 @@ async def admin_add_prod(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except:
         pass
     await context.bot.send_message(chat_id=query.message.chat_id, text="Mahsulot qo'shish uchun kategoriyani tanlang:", reply_markup=InlineKeyboardMarkup(keyboard))
+    return ADD_CAT
 
 async def admin_add_prod_yotoqxona(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -874,6 +874,7 @@ async def admin_add_prod_yotoqxona(update: Update, context: ContextTypes.DEFAULT
     except:
         pass
     await context.bot.send_message(chat_id=query.message.chat_id, text="Yotoqxona turini tanlang:", reply_markup=InlineKeyboardMarkup(keyboard))
+    return ADD_CAT
 
 async def add_prod_cat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -922,7 +923,7 @@ async def add_prod_desc_text(update: Update, context: ContextTypes.DEFAULT_TYPE)
     conn.close()
     
     lang = get_current_lang()
-    await update.message.reply_text("✅ Mahsulot muvaffaqiyatli qo'shildi!", reply_markup=main_menu_keyboard(lang))
+    await update.message.reply_text(f"✅ {cat} bo'limiga mahsulot muvaffaqiyatli qo'shildi!", reply_markup=main_menu_keyboard(lang))
     return ConversationHandler.END
 
 async def add_prod_desc_skip(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -943,7 +944,7 @@ async def add_prod_desc_skip(update: Update, context: ContextTypes.DEFAULT_TYPE)
     except:
         pass
     lang = get_current_lang()
-    await context.bot.send_message(chat_id=query.message.chat_id, text="✅ Mahsulot muvaffaqiyatli qo'shildi!\nAsosiy menyu:", reply_markup=main_menu_keyboard(lang))
+    await context.bot.send_message(chat_id=query.message.chat_id, text=f"✅ {cat} bo'limiga mahsulot muvaffaqiyatli qo'shildi!\nAsosiy menyu:", reply_markup=main_menu_keyboard(lang))
     return ConversationHandler.END
 
 # --- RASMLARni ID VA SAHIFA BILAN KO'RIB CHIQIB O'CHIRISH ---
