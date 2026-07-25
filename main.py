@@ -43,7 +43,7 @@ TOKEN = "8722268472:AAEgcBPD0m1jWjP_5WjXN9z080U9v2BT20c"
     SET_LOGO, SET_INFO, SET_WELCOME, DEL_BRAND
 ) = range(11)
 
-# Ma'lumotlar bazasini sozlash (indekslar bilan birga)
+# Ma'lumotlar bazasini sozlash
 def init_db():
     conn = sqlite3.connect("furniture_bot.db")
     cursor = conn.cursor()
@@ -77,11 +77,10 @@ def init_db():
         )
     """)
     
-    # Tezlik uchun indekslar
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_products_cat ON products(category)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_colors_brand ON colors(brand)")
     
-    default_brands = ["Stolichnitsa", "LDSP / MDF", "Yeger Premium", "Akril: Kashtan", "Akril: Kastomano"]
+    default_brands = ["Eman", "Yeger", "Sayuz", "Ultra Dekor"]
     for b in default_brands:
         cursor.execute("INSERT OR IGNORE INTO brands (brand_name) VALUES (?)", (b,))
         
@@ -103,7 +102,6 @@ def init_db():
 
 init_db()
 
-# Asosiy menyu
 def main_menu_keyboard(lang="uz"):
     if lang == "ru":
         keyboard = [
@@ -177,21 +175,27 @@ async def user_catalog_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if lang == "ru":
         keyboard = [
-            [InlineKeyboardButton("🛏 Спальня", callback_data="ucat_Yotoqxona"),
-             InlineKeyboardButton("🍳 Кухня", callback_data="ucat_Oshxona")],
-            [InlineKeyboardButton("🛋 Мягкая мебель", callback_data="ucat_Yumshoq_mebel"),
-             InlineKeyboardButton("🚪 Прихожая", callback_data="ucat_Koridor")],
-            [InlineKeyboardButton("📺 ТВ зона", callback_data="ucat_TV_zona")],
+            [InlineKeyboardButton("🛏 Спальня для взрослых", callback_data="ucat_Kattalar_yotoqxonasi")],
+            [InlineKeyboardButton("🧸 Детская спальня", callback_data="ucat_Bolalar_yotoqxonasi")],
+            [InlineKeyboardButton("🚪 Шкаф-купе", callback_data="ucat_Shkaf_kupe"),
+             InlineKeyboardButton("👔 Гардероб", callback_data="ucat_Garderob")],
+            [InlineKeyboardButton("🍳 Кухня", callback_data="ucat_Oshxona"),
+             InlineKeyboardButton("🛋 Мягкая мебель", callback_data="ucat_Yumshoq_mebel")],
+            [InlineKeyboardButton("🚪 Прихожая", callback_data="ucat_Koridor"),
+             InlineKeyboardButton("📺 ТВ зона", callback_data="ucat_TV_zona")],
             [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_main")]
         ]
         caption_text = "Выберите категорию:"
     else:
         keyboard = [
-            [InlineKeyboardButton("🛏 Yotoqxona", callback_data="ucat_Yotoqxona"),
-             InlineKeyboardButton("🍳 Oshxona", callback_data="ucat_Oshxona")],
-            [InlineKeyboardButton("🛋 Yumshoq mebel", callback_data="ucat_Yumshoq_mebel"),
-             InlineKeyboardButton("🚪 Koridor", callback_data="ucat_Koridor")],
-            [InlineKeyboardButton("📺 TV zona", callback_data="ucat_TV_zona")],
+            [InlineKeyboardButton("🛏 Kattalar yotoqxonasi", callback_data="ucat_Kattalar_yotoqxonasi")],
+            [InlineKeyboardButton("🧸 Bolalar yotoqxonasi", callback_data="ucat_Bolalar_yotoqxonasi")],
+            [InlineKeyboardButton("🚪 Shkaf kupe", callback_data="ucat_Shkaf_kupe"),
+             InlineKeyboardButton("👔 Garderob", callback_data="ucat_Garderob")],
+            [InlineKeyboardButton("🍳 Oshxona", callback_data="ucat_Oshxona"),
+             InlineKeyboardButton("🛋 Yumshoq mebel", callback_data="ucat_Yumshoq_mebel")],
+            [InlineKeyboardButton("🚪 Koridor", callback_data="ucat_Koridor"),
+             InlineKeyboardButton("📺 TV zona", callback_data="ucat_TV_zona")],
             [InlineKeyboardButton("⬅️ Orqaga", callback_data="back_to_main")]
         ]
         caption_text = "Kategoriyani tanlang:"
@@ -483,7 +487,6 @@ async def back_to_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.callback_query.answer()
     await admin_panel(update, context)
 
-# --- ADMIN: Salomlashish matnini o'zgartirish ---
 async def admin_welcome_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -520,7 +523,6 @@ async def admin_welcome_save(update: Update, context: ContextTypes.DEFAULT_TYPE)
     await update.message.reply_text("✅ Salomlashish matni muvaffaqiyatli yangilandi!", reply_markup=main_menu_keyboard(lang))
     return ConversationHandler.END
 
-# --- ADMIN: Brendlar va Ranglar Menyu ---
 async def admin_brands_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -721,7 +723,6 @@ async def add_color_name_skip(update: Update, context: ContextTypes.DEFAULT_TYPE
     await context.bot.send_message(chat_id=query.message.chat_id, text="✅ Rang/material muvaffaqiyatli qo'shildi!\nAsosiy menyu:", reply_markup=main_menu_keyboard(lang))
     return ConversationHandler.END
 
-# --- ADMIN: Logotip va Sozlamalar ---
 async def admin_logo_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -794,11 +795,14 @@ async def admin_add_prod(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     keyboard = [
-        [InlineKeyboardButton("🛏 Yotoqxona", callback_data="cat_Yotoqxona"),
-         InlineKeyboardButton("🍳 Oshxona", callback_data="cat_Oshxona")],
-        [InlineKeyboardButton("🛋 Yumshoq mebel", callback_data="cat_Yumshoq_mebel"),
-         InlineKeyboardButton("🚪 Koridor", callback_data="cat_Koridor")],
-        [InlineKeyboardButton("📺 TV zona", callback_data="cat_TV_zona")],
+        [InlineKeyboardButton("🛏 Kattalar yotoqxonasi", callback_data="cat_Kattalar_yotoqxonasi")],
+        [InlineKeyboardButton("🧸 Bolalar yotoqxonasi", callback_data="cat_Bolalar_yotoqxonasi")],
+        [InlineKeyboardButton("🚪 Shkaf kupe", callback_data="cat_Shkaf_kupe"),
+         InlineKeyboardButton("👔 Garderob", callback_data="cat_Garderob")],
+        [InlineKeyboardButton("🍳 Oshxona", callback_data="cat_Oshxona"),
+         InlineKeyboardButton("🛋 Yumshoq mebel", callback_data="cat_Yumshoq_mebel")],
+        [InlineKeyboardButton("🚪 Koridor", callback_data="cat_Koridor"),
+         InlineKeyboardButton("📺 TV zona", callback_data="cat_TV_zona")],
         [InlineKeyboardButton("⬅️ Orqaga", callback_data="back_to_admin")]
     ]
     try:
@@ -879,7 +883,7 @@ async def add_prod_desc_skip(update: Update, context: ContextTypes.DEFAULT_TYPE)
     await context.bot.send_message(chat_id=query.message.chat_id, text="✅ Mahsulot muvaffaqiyatli qo'shildi!\nAsosiy menyu:", reply_markup=main_menu_keyboard(lang))
     return ConversationHandler.END
 
-# --- RASMLARNI ID VA SAHIFA BILAN KO'RIB CHIQIB O'CHIRISH ---
+# --- RASMLARni ID VA SAHIFA BILAN KO'RIB CHIQIB O'CHIRISH ---
 async def del_prod_view(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -992,7 +996,6 @@ if __name__ == "__main__":
         .build()
     )
 
-    # Handlers
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("admin", admin_panel))
     application.add_handler(CallbackQueryHandler(back_to_admin, pattern="^back_to_admin$"))
@@ -1000,7 +1003,6 @@ if __name__ == "__main__":
     application.add_handler(CallbackQueryHandler(admin_brands_menu, pattern="^admin_brands_menu$"))
     application.add_handler(CallbackQueryHandler(noop_handler, pattern="^noop$"))
 
-    # Logo Conversation
     logo_handler = ConversationHandler(
         entry_points=[CallbackQueryHandler(admin_logo_start, pattern="^admin_logo$")],
         states={SET_LOGO: [MessageHandler(filters.PHOTO, admin_logo_save)]},
@@ -1008,7 +1010,6 @@ if __name__ == "__main__":
     )
     application.add_handler(logo_handler)
 
-    # Welcome Text Conversation
     welcome_handler = ConversationHandler(
         entry_points=[CallbackQueryHandler(admin_welcome_start, pattern="^admin_welcome$")],
         states={SET_WELCOME: [MessageHandler(filters.TEXT & ~filters.COMMAND, admin_welcome_save)]},
@@ -1016,7 +1017,6 @@ if __name__ == "__main__":
     )
     application.add_handler(welcome_handler)
 
-    # Settings Conversation
     settings_handler = ConversationHandler(
         entry_points=[CallbackQueryHandler(admin_settings_start, pattern="^admin_settings$")],
         states={SET_INFO: [MessageHandler(filters.TEXT & ~filters.COMMAND, admin_settings_save)]},
@@ -1024,7 +1024,6 @@ if __name__ == "__main__":
     )
     application.add_handler(settings_handler)
 
-    # Add Brand Conversation
     add_brand_handler = ConversationHandler(
         entry_points=[CallbackQueryHandler(add_brand_start, pattern="^abrand_add$")],
         states={ADD_NEW_BRAND: [MessageHandler(filters.TEXT & ~filters.COMMAND, add_brand_save)]},
@@ -1032,7 +1031,6 @@ if __name__ == "__main__":
     )
     application.add_handler(add_brand_handler)
 
-    # Delete Brand Conversation
     del_brand_handler = ConversationHandler(
         entry_points=[CallbackQueryHandler(del_brand_start, pattern="^abrand_del$")],
         states={DEL_BRAND: [CallbackQueryHandler(del_brand_execute, pattern="^delbrand_")]},
@@ -1040,7 +1038,6 @@ if __name__ == "__main__":
     )
     application.add_handler(del_brand_handler)
 
-    # Add Color Conversation
     add_color_handler = ConversationHandler(
         entry_points=[CallbackQueryHandler(add_color_start, pattern="^acolor_start$")],
         states={
@@ -1059,7 +1056,6 @@ if __name__ == "__main__":
     )
     application.add_handler(add_color_handler)
 
-    # Add Product Conversation
     add_product_handler = ConversationHandler(
         entry_points=[CallbackQueryHandler(admin_add_prod, pattern="^admin_add_prod$")],
         states={
@@ -1081,11 +1077,9 @@ if __name__ == "__main__":
     )
     application.add_handler(add_product_handler)
 
-    # Delete Product Handlers
     application.add_handler(CallbackQueryHandler(del_prod_view, pattern="^admin_del_prod$|^delview_"))
     application.add_handler(CallbackQueryHandler(del_prod_execute, pattern="^deldone_"))
 
-    # User Handlers
     application.add_handlers([
         CallbackQueryHandler(user_catalog_menu, pattern="^main_catalog$"),
         CallbackQueryHandler(user_catalog_click, pattern="^ucat_"),
@@ -1099,4 +1093,3 @@ if __name__ == "__main__":
     keep_alive()
     print("Bot muvaffaqiyatli ishga tushdi...")
     application.run_polling()
-   
