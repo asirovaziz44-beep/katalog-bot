@@ -307,9 +307,7 @@ async def user_colors_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if lang == "ru":
         keyboard = [
             [InlineKeyboardButton("🪵 Столешница", callback_data="ucol_Stoleshnitsa_0")],
-            [InlineKeyboardButton("✨ Акрил (Общий)", callback_data="ucol_Akril_0")],
-            [InlineKeyboardButton("🔹 Акрил: Каштан", callback_data="ucol_Akril_Kashtan_0"),
-             InlineKeyboardButton("🔸 Акрил: Кастаман", callback_data="ucol_Akril_Kastamanu_0")],
+            [InlineKeyboardButton("✨ Акрил", callback_data="subcat_akril")],
             [InlineKeyboardButton("🗄 МДФ / ЛДСП", callback_data="ucol_MDF_LDSP_0")],
             [InlineKeyboardButton("⭐ Yeger Premium", callback_data="ucol_Yeger_Premium_0")],
             [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_main")]
@@ -318,15 +316,39 @@ async def user_colors_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         keyboard = [
             [InlineKeyboardButton("🪵 Stoleshnitsa", callback_data="ucol_Stoleshnitsa_0")],
-            [InlineKeyboardButton("✨ Akril (Umumiy)", callback_data="ucol_Akril_0")],
-            [InlineKeyboardButton("🔹 Akril: Kashtan", callback_data="ucol_Akril_Kashtan_0"),
-             InlineKeyboardButton("🔸 Akril: Kastaman", callback_data="ucol_Akril_Kastaman_0")],
+            [InlineKeyboardButton("✨ Akril", callback_data="subcat_akril")],
             [InlineKeyboardButton("🗄 MDF / LDSP", callback_data="ucol_MDF_LDSP_0")],
             [InlineKeyboardButton("⭐ Yeger premium", callback_data="ucol_Yeger_Premium_0")],
             [InlineKeyboardButton("⬅️ Orqaga", callback_data="back_to_main")]
         ]
         cap = "Kerakli material yoki brendni tanlang:"
     
+    try:
+        await query.message.delete()
+    except:
+        pass
+    await context.bot.send_message(chat_id=query.message.chat_id, text=cap, reply_markup=InlineKeyboardMarkup(keyboard))
+
+async def user_akril_submenu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    lang = get_current_lang()
+    
+    if lang == "ru":
+        keyboard = [
+            [InlineKeyboardButton("🔹 Акрил: Каштан", callback_data="ucol_Akril_Kashtan_0")],
+            [InlineKeyboardButton("🔸 Акрил: Кастаман", callback_data="ucol_Akril_Kastaman_0")],
+            [InlineKeyboardButton("⬅️ Назад", callback_data="main_colors")]
+        ]
+        cap = "Выберите подкатегорию акрила:"
+    else:
+        keyboard = [
+            [InlineKeyboardButton("🔹 Akril: Kashtan", callback_data="ucol_Akril_Kashtan_0")],
+            [InlineKeyboardButton("🔸 Akril: Kastamanu", callback_data="ucol_Akril_Kastamanu_0")],
+            [InlineKeyboardButton("⬅️ Orqaga", callback_data="main_colors")]
+        ]
+        cap = "Akril bo'limini tanlang:"
+        
     try:
         await query.message.delete()
     except:
@@ -371,7 +393,9 @@ async def user_color_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
     colors = cursor.fetchall()
     conn.close()
     
-    back_kb = InlineKeyboardMarkup([[InlineKeyboardButton("Назад" if lang == "ru" else "Orqaga", callback_data="main_colors")]])
+    # Agar tanlangan brend Akril kichik bo'limlaridan biri bo'lsa, Orqaga tugmasi Akril ichki menusiga qaytadi
+    back_target = "subcat_akril" if "Akril" in selected_brand else "main_colors"
+    back_kb = InlineKeyboardMarkup([[InlineKeyboardButton("Назад" if lang == "ru" else "Orqaga", callback_data=back_target)]])
     
     if not colors:
         msg = f"Для раздела '{selected_brand}' цвета еще не добавлены." if lang == "ru" else f"'{selected_brand}' bo'limi uchun ranglar hali kiritilmagan."
@@ -406,7 +430,7 @@ async def user_color_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
         next_text = "Keyingi ➡️" if lang != "ru" else "Вперед ➡️"
         nav_buttons.append(InlineKeyboardButton(next_text, callback_data=f"ucol_{brand_clean_query}_{page+1}"))
         
-    keyboard_layout = [nav_buttons, [InlineKeyboardButton("Назад" if lang == "ru" else "Orqaga", callback_data="main_colors")]]
+    keyboard_layout = [nav_buttons, [InlineKeyboardButton("Назад" if lang == "ru" else "Orqaga", callback_data=back_target)]]
     
     await context.bot.send_message(chat_id=query.message.chat_id, text="Sahifani tanlang:" if lang != "ru" else "Выберите страницу:", reply_markup=InlineKeyboardMarkup(keyboard_layout))
 
@@ -1125,6 +1149,7 @@ if __name__ == "__main__":
         CallbackQueryHandler(user_yotoqxona_submenu, pattern="^subcat_yotoqxona$"),
         CallbackQueryHandler(user_catalog_click, pattern="^ucat_"),
         CallbackQueryHandler(user_colors_menu, pattern="^main_colors$"),
+        CallbackQueryHandler(user_akril_submenu, pattern="^subcat_akril$"),
         CallbackQueryHandler(user_color_click, pattern="^ucol_"),
         CallbackQueryHandler(main_info, pattern="^main_info$"),
         CallbackQueryHandler(main_lang, pattern="^main_lang$"),
