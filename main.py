@@ -105,14 +105,16 @@ def main_menu_keyboard(lang="uz"):
             [InlineKeyboardButton("📁 Каталог", callback_data="main_catalog"),
              InlineKeyboardButton("🎨 Цвета / Бренды", callback_data="main_colors")],
             [InlineKeyboardButton("📞 Контакты", callback_data="main_info"),
-             InlineKeyboardButton("🌐 Язык", callback_data="main_lang")]
+             InlineKeyboardButton("🌐 Язык", callback_data="main_lang")],
+            [InlineKeyboardButton("🔄 Обновить / Старт", callback_data="back_to_main")]
         ]
     else:
         keyboard = [
             [InlineKeyboardButton("📁 Katalog", callback_data="main_catalog"),
              InlineKeyboardButton("🎨 Ranglar / Brendlar", callback_data="main_colors")],
             [InlineKeyboardButton("📞 Aloqa", callback_data="main_info"),
-             InlineKeyboardButton("🌐 Til", callback_data="main_lang")]
+             InlineKeyboardButton("🌐 Til", callback_data="main_lang")],
+            [InlineKeyboardButton("🔄 Yangilash / Start", callback_data="back_to_main")]
         ]
     return InlineKeyboardMarkup(keyboard)
 
@@ -263,7 +265,7 @@ async def user_catalog_click(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await context.bot.send_message(chat_id=query.message.chat_id, text=msg, reply_markup=back_kb)
         return
         
-    limit = 5
+    limit = 10
     start_idx = page * limit
     end_idx = start_idx + limit
     page_products = products[start_idx:end_idx]
@@ -339,7 +341,7 @@ async def user_akril_submenu(update: Update, context: ContextTypes.DEFAULT_TYPE)
         keyboard = [
             [InlineKeyboardButton("✨ Акрил (Общий)", callback_data="ucol_Akril_Umumiy_0")],
             [InlineKeyboardButton("🔷 Акрил: Каштан", callback_data="ucol_Akril_Kashtan_0"),
-             InlineKeyboardButton("🔶 Акрил: Кастаман", callback_data="ucol_Akril_Kastaman_0")],
+             InlineKeyboardButton("🔶 Акрил: Кастаману", callback_data="ucol_Akril_Kastamanu_0")],
             [InlineKeyboardButton("⬅️ Назад", callback_data="main_colors")]
         ]
         cap = "Выберите раздел акрила:"
