@@ -80,7 +80,7 @@ def init_db():
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_products_cat ON products(category)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_colors_brand ON colors(brand)")
     
-    default_brands = ["Eman", "Yeger", "Sayuz", "Ultra Dekor"]
+    default_brands = ["Stoleshnitsa", "Akril", "MDF", "LDSP", "Yeger Premium"]
     for b in default_brands:
         cursor.execute("INSERT OR IGNORE INTO brands (brand_name) VALUES (?)", (b,))
         
@@ -176,8 +176,6 @@ async def user_catalog_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if lang == "ru":
         keyboard = [
             [InlineKeyboardButton("🛏 Спальня", callback_data="subcat_yotoqxona")],
-            [InlineKeyboardButton("🚪 Шкаф-купе", callback_data="ucat_Shkaf_kupe"),
-             InlineKeyboardButton("👔 Гардероб", callback_data="ucat_Garderob")],
             [InlineKeyboardButton("🍳 Кухня", callback_data="ucat_Oshxona"),
              InlineKeyboardButton("🛋 Мягкая мебель", callback_data="ucat_Yumshoq_mebel")],
             [InlineKeyboardButton("🚪 Прихожая", callback_data="ucat_Koridor"),
@@ -188,8 +186,6 @@ async def user_catalog_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         keyboard = [
             [InlineKeyboardButton("🛏 Yotoqxona", callback_data="subcat_yotoqxona")],
-            [InlineKeyboardButton("🚪 Shkaf kupe", callback_data="ucat_Shkaf_kupe"),
-             InlineKeyboardButton("👔 Garderob", callback_data="ucat_Garderob")],
             [InlineKeyboardButton("🍳 Oshxona", callback_data="ucat_Oshxona"),
              InlineKeyboardButton("🛋 Yumshoq mebel", callback_data="ucat_Yumshoq_mebel")],
             [InlineKeyboardButton("🚪 Koridor", callback_data="ucat_Koridor"),
@@ -213,6 +209,7 @@ async def user_yotoqxona_submenu(update: Update, context: ContextTypes.DEFAULT_T
         keyboard = [
             [InlineKeyboardButton("🛏 Спальня для взрослых", callback_data="ucat_Kattalar_yotoqxonasi")],
             [InlineKeyboardButton("🧸 Детская спальня", callback_data="ucat_Bolalar_yotoqxonasi")],
+            [InlineKeyboardButton("🚪 Шкаф-купе / Гардероб", callback_data="ucat_Shkaf_kupe_garderob")],
             [InlineKeyboardButton("⬅️ Назад", callback_data="main_catalog")]
         ]
         caption_text = "Выберите раздел спальни:"
@@ -220,6 +217,7 @@ async def user_yotoqxona_submenu(update: Update, context: ContextTypes.DEFAULT_T
         keyboard = [
             [InlineKeyboardButton("🛏 Kattalar yotoqxonasi", callback_data="ucat_Kattalar_yotoqxonasi")],
             [InlineKeyboardButton("🧸 Bolalar yotoqxonasi", callback_data="ucat_Bolalar_yotoqxonasi")],
+            [InlineKeyboardButton("🚪 Shkaf kupe / Garderob", callback_data="ucat_Shkaf_kupe_garderob")],
             [InlineKeyboardButton("⬅️ Orqaga", callback_data="main_catalog")]
         ]
         caption_text = "Yotoqxona bo'limini tanlang:"
@@ -252,8 +250,7 @@ async def user_catalog_click(update: Update, context: ContextTypes.DEFAULT_TYPE)
     except:
         pass
 
-    # Agar kategoriya yotoqxonaga tegishli bo'lsa, Orqaga tugmasi yotoqxona quyi menyusiga qaytaradi
-    if cat in ["Kattalar_yotoqxonasi", "Bolalar_yotoqxonasi"]:
+    if cat in ["Kattalar_yotoqxonasi", "Bolalar_yotoqxonasi", "Shkaf_kupe_garderob"]:
         back_callback = "subcat_yotoqxona"
     else:
         back_callback = "main_catalog"
@@ -307,27 +304,26 @@ async def user_colors_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     lang = get_current_lang()
     
-    conn = sqlite3.connect("furniture_bot.db")
-    cursor = conn.cursor()
-    cursor.execute("SELECT brand_name FROM brands")
-    brands = cursor.fetchall()
-    conn.close()
-    
-    keyboard = []
-    row = []
-    for b in brands:
-        b_name = b[0]
-        cb_data = f"ucol_{b_name.replace(' ', '_').replace('/', '').replace(':', '')}_0"
-        row.append(InlineKeyboardButton(b_name, callback_data=cb_data))
-        if len(row) == 2:
-            keyboard.append(row)
-            row = []
-    if row:
-        keyboard.append(row)
-        
-    back_text = "Назад" if lang == "ru" else "Orqaga"
-    keyboard.append([InlineKeyboardButton(f"⬅️ {back_text}", callback_data="back_to_main")])
-    cap = "Выберите материал или бренд:" if lang == "ru" else "Kerakli material yoki brendni tanlang:"
+    if lang == "ru":
+        keyboard = [
+            [InlineKeyboardButton("🪵 Столешница", callback_data="ucol_Stoleshnitsa_0")],
+            [InlineKeyboardButton("✨ Акрил", callback_data="ucol_Akril_0")],
+            [InlineKeyboardButton("🗄 МДФ", callback_data="ucol_MDF_0"),
+             InlineKeyboardButton("🚪 ЛДСП", callback_data="ucol_LDSP_0")],
+            [InlineKeyboardButton("⭐ Yeger Premium", callback_data="ucol_Yeger_Premium_0")],
+            [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_main")]
+        ]
+        cap = "Выберите материал или бренд:"
+    else:
+        keyboard = [
+            [InlineKeyboardButton("🪵 Stoleshnitsa", callback_data="ucol_Stoleshnitsa_0")],
+            [InlineKeyboardButton("✨ Akril", callback_data="ucol_Akril_0")],
+            [InlineKeyboardButton("🗄 MDF", callback_data="ucol_MDF_0"),
+             InlineKeyboardButton("🚪 LDSP", callback_data="ucol_LDSP_0")],
+            [InlineKeyboardButton("⭐ Yeger premium", callback_data="ucol_Yeger_Premium_0")],
+            [InlineKeyboardButton("⬅️ Orqaga", callback_data="back_to_main")]
+        ]
+        cap = "Kerakli material yoki brendni tanlang:"
     
     try:
         await query.message.delete()
@@ -826,8 +822,6 @@ async def admin_add_prod(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     keyboard = [
         [InlineKeyboardButton("🛏 Yotoqxona (Barchasi)", callback_data="acat_yotoqxona_menu")],
-        [InlineKeyboardButton("🚪 Shkaf kupe", callback_data="cat_Shkaf_kupe"),
-         InlineKeyboardButton("👔 Garderob", callback_data="cat_Garderob")],
         [InlineKeyboardButton("🍳 Oshxona", callback_data="cat_Oshxona"),
          InlineKeyboardButton("🛋 Yumshoq mebel", callback_data="cat_Yumshoq_mebel")],
         [InlineKeyboardButton("🚪 Koridor", callback_data="cat_Koridor"),
@@ -846,6 +840,7 @@ async def admin_add_prod_yotoqxona(update: Update, context: ContextTypes.DEFAULT
     keyboard = [
         [InlineKeyboardButton("🛏 Kattalar yotoqxonasi", callback_data="cat_Kattalar_yotoqxonasi")],
         [InlineKeyboardButton("🧸 Bolalar yotoqxonasi", callback_data="cat_Bolalar_yotoqxonasi")],
+        [InlineKeyboardButton("🚪 Shkaf kupe / Garderob", callback_data="cat_Shkaf_kupe_garderob")],
         [InlineKeyboardButton("⬅️ Orqaga", callback_data="admin_add_prod")]
     ]
     try:
