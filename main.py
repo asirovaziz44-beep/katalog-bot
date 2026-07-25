@@ -860,6 +860,7 @@ async def admin_add_prod(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except:
         pass
     await context.bot.send_message(chat_id=query.message.chat_id, text="Mahsulot qo'shish uchun kategoriyani tanlang:", reply_markup=InlineKeyboardMarkup(keyboard))
+    return ADD_CAT
 
 async def admin_add_prod_yotoqxona(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -868,13 +869,19 @@ async def admin_add_prod_yotoqxona(update: Update, context: ContextTypes.DEFAULT
         [InlineKeyboardButton("🛏 Kattalar yotoqxonasi", callback_data="cat_Kattalar_yotoqxonasi")],
         [InlineKeyboardButton("🧸 Bolalar yotoqxonasi", callback_data="cat_Bolalar_yotoqxonasi")],
         [InlineKeyboardButton("🚪 Shkaf kupe / Garderob", callback_data="cat_Shkaf_kupe_garderob")],
-        [InlineKeyboardButton("⬅️ Orqaga", callback_data="admin_add_prod")]
+        [InlineKeyboardButton("⬅️ Orqaga", callback_data="admin_add_prod_back")]
     ]
     try:
         await query.message.delete()
     except:
         pass
     await context.bot.send_message(chat_id=query.message.chat_id, text="Yotoqxona turini tanlang:", reply_markup=InlineKeyboardMarkup(keyboard))
+    return ADD_CAT
+
+async def admin_add_prod_back_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    return await admin_add_prod(update, context)
 
 async def add_prod_cat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -1125,17 +1132,20 @@ if __name__ == "__main__":
         states={
             ADD_CAT: [
                 CallbackQueryHandler(admin_add_prod_yotoqxona, pattern="^acat_yotoqxona_menu$"),
+                CallbackQueryHandler(admin_add_prod_back_handler, pattern="^admin_add_prod_back$"),
                 CallbackQueryHandler(add_prod_cat, pattern="^cat_"),
                 CallbackQueryHandler(back_to_admin, pattern="^back_to_admin$")
             ],
             ADD_PHOTO: [
                 MessageHandler(filters.PHOTO, add_prod_photo),
-                CallbackQueryHandler(admin_add_prod, pattern="^admin_add_prod$")
+                CallbackQueryHandler(admin_add_prod, pattern="^admin_add_prod$"),
+                CallbackQueryHandler(back_to_admin, pattern="^back_to_admin$")
             ],
             ADD_DESC: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, add_prod_desc_text),
                 CallbackQueryHandler(add_prod_desc_skip, pattern="^skip_desc$"),
-                CallbackQueryHandler(admin_add_prod, pattern="^admin_add_prod$")
+                CallbackQueryHandler(admin_add_prod, pattern="^admin_add_prod$"),
+                CallbackQueryHandler(back_to_admin, pattern="^back_to_admin$")
             ]
         },
         fallbacks=[CommandHandler("cancel", cancel), CallbackQueryHandler(back_to_admin, pattern="^back_to_admin$")]
