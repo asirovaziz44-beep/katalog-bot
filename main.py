@@ -1079,7 +1079,6 @@ async def admin_del_cat_view(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await context.bot.send_message(chat_id=query.message.chat_id, text="Bu bo'limda o'chirish uchun mahsulotlar yo'q.", reply_markup=back_kb)
         return
         
-    # Har bir sahifada 5 tadan mahsulot chiqadi (katalogdagi kabi)
     limit = 5
     total_pages = (len(products) + limit - 1) // limit
     if page >= total_pages:
@@ -1091,7 +1090,6 @@ async def admin_del_cat_view(update: Update, context: ContextTypes.DEFAULT_TYPE)
     end_idx = start_idx + limit
     page_products = products[start_idx:end_idx]
     
-    # Har bir mahsulotni o'chirish va tahrirlash tugmalari bilan yuboramiz
     for p in page_products:
         prod_id, desc, photo = p[0], p[1], p[2]
         caption = f"🆔 <b>ID: {prod_id}</b> | 📂 Bo'lim: <b>{cat}</b>"
@@ -1110,7 +1108,6 @@ async def admin_del_cat_view(update: Update, context: ContextTypes.DEFAULT_TYPE)
         else:
             await context.bot.send_message(chat_id=query.message.chat_id, text=caption, parse_mode="HTML", reply_markup=markup)
             
-    # Sahifalash tugmalari (katalogdagi kabi raqamli tugmalar)
     page_buttons = []
     for i in range(total_pages):
         btn_text = f"• {i+1} •" if i == page else str(i+1)
@@ -1187,12 +1184,13 @@ async def admin_edit_prod_save(update: Update, context: ContextTypes.DEFAULT_TYP
     
     await update.message.reply_text("✅ Mahsulot tavsifi muvaffaqiyatli yangilandi!")
     
-    context.args = []
-    update.callback_query = type('obj', (object,), {
+    query_obj = type('obj', (object,), {
         'answer': lambda *a, **kw: None,
         'message': update.message,
         'data': f"adelcat_{cat}_{page}"
     })()
+    
+    update.callback_query = query_obj
     await admin_del_cat_view(update, context)
     return ConversationHandler.END
 
@@ -1418,7 +1416,7 @@ if __name__ == "__main__":
     application.add_handler(del_brand_handler)
 
     add_color_handler = ConversationHandler(
-        entry_points=[CallbackQueryHandler(add_color_start, pattern="^acolor_start$")],
+        entry_points=[CallbackQueryHandler(acolor_start, pattern="^acolor_start$")],
         states={
             ADD_BRAND_MENU: [CallbackQueryHandler(add_color_brand, pattern="^abrand_")],
             ADD_COLOR_PHOTO: [
@@ -1478,6 +1476,7 @@ if __name__ == "__main__":
     )
     application.add_handler(edit_color_handler)
 
+    # Muhim: Maxsus callback handlerlarni ro'yxatning boshiga qo'yamiz
     application.add_handlers([
         CallbackQueryHandler(admin_del_prod_menu, pattern="^admin_del_prod_menu$"),
         CallbackQueryHandler(admin_del_cat_view, pattern="^adelcat_"),
