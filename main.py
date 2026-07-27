@@ -1,5 +1,6 @@
 from flask import Flask
 from threading import Thread
+import os
 
 app = Flask('')
 
@@ -35,6 +36,20 @@ logger = logging.getLogger(__name__)
 TOKEN = "8722268472:AAEgcBPD0m1jWjP_5WjXN9z080U9v2BT20c"
 MANAGER_USERNAME = "azizbek_mebel"
 
+# --- RENDER DATA DISK YO'LI ---
+# Render'da /data papkasi disk sifatida ulanadi, shuning uchun baza shu yerda saqlanadi
+DB_DIR = "/data"
+if not os.path.exists(DB_DIR):
+    try:
+        os.makedirs(DB_DIR, exist_ok=True)
+    except Exception:
+        DB_DIR = "." # Agar lokal kompyuterda ishlatilsa joriy papkaga saqlaydi
+
+DB_PATH = os.path.join(DB_DIR, "furniture_bot.db")
+
+def get_db_connection():
+    return sqlite3.connect(DB_PATH)
+
 (
     ADD_CAT, ADD_PHOTO, ADD_DESC, 
     ADD_BRAND_MENU, ADD_NEW_BRAND, ADD_COLOR_PHOTO, ADD_COLOR_NAME,
@@ -42,7 +57,7 @@ MANAGER_USERNAME = "azizbek_mebel"
 ) = range(11)
 
 def init_db():
-    conn = sqlite3.connect("furniture_bot.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS products (
@@ -105,21 +120,19 @@ def main_menu_keyboard(lang="uz"):
             [InlineKeyboardButton("📁 Каталог", callback_data="main_catalog"),
              InlineKeyboardButton("🎨 Цвета / Бренды", callback_data="main_colors")],
             [InlineKeyboardButton("📞 Контакты", callback_data="main_info"),
-             InlineKeyboardButton("🌐 Язык", callback_data="main_lang")],
-            [InlineKeyboardButton("🔄 Обновить бота", callback_data="refresh_bot")]
+             InlineKeyboardButton("🌐 Язык", callback_data="main_lang")]
         ]
     else:
         keyboard = [
             [InlineKeyboardButton("📁 Katalog", callback_data="main_catalog"),
              InlineKeyboardButton("🎨 Ranglar / Brendlar", callback_data="main_colors")],
             [InlineKeyboardButton("📞 Aloqa", callback_data="main_info"),
-             InlineKeyboardButton("🌐 Til", callback_data="main_lang")],
-            [InlineKeyboardButton("🔄 Botni yangilash", callback_data="refresh_bot")]
+             InlineKeyboardButton("🌐 Til", callback_data="main_lang")]
         ]
     return InlineKeyboardMarkup(keyboard)
 
 def get_current_lang():
-    conn = sqlite3.connect("furniture_bot.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT value FROM settings WHERE key = 'language'")
     res = cursor.fetchone()
@@ -130,7 +143,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     lang = get_current_lang()
     
-    conn = sqlite3.connect("furniture_bot.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT value FROM settings WHERE key = 'welcome_text'")
     res_text = cursor.fetchone()
@@ -165,12 +178,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await context.bot.send_photo(chat_id=chat_id, photo=logo_file_id, caption=text, reply_markup=kb)
     else:
         await context.bot.send_message(chat_id=chat_id, text=text, reply_markup=kb)
-
-# --- BOTNI YANGILASH FUNKSIYASI ---
-async def refresh_bot(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer("Bot ma'lumotlari yangilandi!", show_alert=False)
-    await start(update, context)
 
 # --- USER: KATALOG ---
 async def user_catalog_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -248,7 +255,7 @@ async def user_catalog_click(update: Update, context: ContextTypes.DEFAULT_TYPE)
     lang = get_current_lang()
     back_text = "Назад" if lang == "ru" else "Orqaga"
     
-    conn = sqlite3.connect("furniture_bot.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT description, photo FROM products WHERE category = ?", (cat,))
     products = cursor.fetchall()
@@ -376,7 +383,7 @@ async def user_color_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
     brand_parts = data_parts[1:-1]
     brand_clean_query = "_".join(brand_parts)
     
-    conn = sqlite3.connect("furniture_bot.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT brand_name FROM brands")
     brands = [row[0] for row in cursor.fetchall()]
@@ -398,7 +405,7 @@ async def user_color_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await context.bot.send_message(chat_id=query.message.chat_id, text="Xatolik.", reply_markup=main_menu_keyboard(lang))
         return
 
-    conn = sqlite3.connect("furniture_bot.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT color_name, photo FROM colors WHERE brand = ?", (selected_brand,))
     colors = cursor.fetchall()
@@ -453,7 +460,7 @@ async def main_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     lang = get_current_lang()
     
-    conn = sqlite3.connect("furniture_bot.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT value FROM settings WHERE key = 'info'")
     res = cursor.fetchone()
@@ -497,7 +504,7 @@ async def set_lang(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     lang_code = query.data.split("_")[-1]
     
-    conn = sqlite3.connect("furniture_bot.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("REPLACE INTO settings (key, value) VALUES ('language', ?)", (lang_code,))
     conn.commit()
@@ -556,7 +563,7 @@ async def admin_welcome_start(update: Update, context: ContextTypes.DEFAULT_TYPE
     query = update.callback_query
     await query.answer()
     
-    conn = sqlite3.connect("furniture_bot.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT value FROM settings WHERE key = 'welcome_text'")
     res = cursor.fetchone()
@@ -579,7 +586,7 @@ async def admin_welcome_start(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 async def admin_welcome_save(update: Update, context: ContextTypes.DEFAULT_TYPE):
     new_text = update.message.text
-    conn = sqlite3.connect("furniture_bot.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("REPLACE INTO settings (key, value) VALUES ('welcome_text', ?)", (new_text,))
     conn.commit()
@@ -617,7 +624,7 @@ async def add_brand_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def add_brand_save(update: Update, context: ContextTypes.DEFAULT_TYPE):
     brand_name = update.message.text.strip()
-    conn = sqlite3.connect("furniture_bot.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
     try:
         cursor.execute("INSERT INTO brands (brand_name) VALUES (?)", (brand_name,))
@@ -633,7 +640,7 @@ async def add_brand_save(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def del_brand_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    conn = sqlite3.connect("furniture_bot.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT id, brand_name FROM brands")
     brands = cursor.fetchall()
@@ -662,7 +669,7 @@ async def del_brand_execute(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     b_id = query.data.split("_")[1]
     
-    conn = sqlite3.connect("furniture_bot.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("DELETE FROM brands WHERE id = ?", (b_id,))
     conn.commit()
@@ -680,7 +687,7 @@ async def add_color_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     
-    conn = sqlite3.connect("furniture_bot.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT id, brand_name FROM brands")
     brands = cursor.fetchall()
@@ -715,7 +722,7 @@ async def add_color_brand(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     b_id = query.data.split("_")[1]
     
-    conn = sqlite3.connect("furniture_bot.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT brand_name FROM brands WHERE id = ?", (b_id,))
     res = cursor.fetchone()
@@ -758,7 +765,7 @@ async def add_color_name_text(update: Update, context: ContextTypes.DEFAULT_TYPE
     brand = context.user_data['color_brand']
     photo = context.user_data['color_photo']
     
-    conn = sqlite3.connect("furniture_bot.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("INSERT INTO colors (brand, color_name, photo) VALUES (?, ?, ?)", (brand, c_name, photo))
     conn.commit()
@@ -777,7 +784,7 @@ async def add_color_name_skip(update: Update, context: ContextTypes.DEFAULT_TYPE
     brand = context.user_data['color_brand']
     photo = context.user_data['color_photo']
     
-    conn = sqlite3.connect("furniture_bot.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("INSERT INTO colors (brand, color_name, photo) VALUES (?, ?, ?)", (brand, "", photo))
     conn.commit()
@@ -796,7 +803,7 @@ async def add_color_name_skip(update: Update, context: ContextTypes.DEFAULT_TYPE
     return ADD_COLOR_PHOTO
 
 def get_brand_id(brand_name):
-    conn = sqlite3.connect("furniture_bot.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT id FROM brands WHERE brand_name = ?", (brand_name,))
     res = cursor.fetchone()
@@ -828,7 +835,7 @@ async def admin_logo_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def admin_logo_save(update: Update, context: ContextTypes.DEFAULT_TYPE):
     photo_file = update.message.photo[-1].file_id
-    conn = sqlite3.connect("furniture_bot.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("REPLACE INTO settings (key, value) VALUES ('logo', ?)", (photo_file,))
     conn.commit()
@@ -851,7 +858,7 @@ async def admin_settings_start(update: Update, context: ContextTypes.DEFAULT_TYP
 
 async def admin_settings_save(update: Update, context: ContextTypes.DEFAULT_TYPE):
     info_text = update.message.text
-    conn = sqlite3.connect("furniture_bot.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("REPLACE INTO settings (key, value) VALUES ('info', ?)", (info_text,))
     conn.commit()
@@ -863,7 +870,7 @@ async def admin_settings_save(update: Update, context: ContextTypes.DEFAULT_TYPE
 async def admin_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    conn = sqlite3.connect("furniture_bot.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT COUNT(*) FROM products")
     p_count = cursor.fetchone()[0]
@@ -960,7 +967,7 @@ async def add_prod_desc_text(update: Update, context: ContextTypes.DEFAULT_TYPE)
     cat = context.user_data.get('prod_cat', 'Boshqa')
     photo = context.user_data.get('prod_photo')
     
-    conn = sqlite3.connect("furniture_bot.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("INSERT INTO products (category, title, description, photo) VALUES (?, ?, ?, ?)",
                    (cat, "", desc, photo))
@@ -980,7 +987,7 @@ async def add_prod_desc_skip(update: Update, context: ContextTypes.DEFAULT_TYPE)
     cat = context.user_data.get('prod_cat', 'Boshqa')
     photo = context.user_data.get('prod_photo')
     
-    conn = sqlite3.connect("furniture_bot.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("INSERT INTO products (category, title, description, photo) VALUES (?, ?, ?, ?)",
                    (cat, "", "", photo))
@@ -1023,7 +1030,7 @@ async def del_prod_view(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         page = 0
     
-    conn = sqlite3.connect("furniture_bot.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT id, category, description, photo FROM products")
     items = cursor.fetchall()
@@ -1089,7 +1096,7 @@ async def del_prod_execute(update: Update, context: ContextTypes.DEFAULT_TYPE):
     prod_id = data_parts[1]
     current_page = int(data_parts[2])
     
-    conn = sqlite3.connect("furniture_bot.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("DELETE FROM products WHERE id = ?", (prod_id,))
     conn.commit()
@@ -1225,8 +1232,6 @@ if __name__ == "__main__":
         CallbackQueryHandler(main_info, pattern="^main_info$"),
         CallbackQueryHandler(main_lang, pattern="^main_lang$"),
         CallbackQueryHandler(set_lang, pattern="^set_lang_"),
-        # Botni yangilash uchun handler qo'shildi:
-        CallbackQueryHandler(refresh_bot, pattern="^refresh_bot$"),
         CallbackQueryHandler(back_to_main, pattern="^back_to_main$")
     ])
     
