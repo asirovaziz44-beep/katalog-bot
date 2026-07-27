@@ -1156,12 +1156,9 @@ async def admin_edit_prod_start(update: Update, context: ContextTypes.DEFAULT_TY
     context.user_data['edit_prod_cat'] = cat
     context.user_data['edit_prod_page'] = page
     
-    try:
-        await query.message.delete()
-    except:
-        pass
-        
     reply_kb = InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Orqaga", callback_data=f"adelcat_{cat}_{page}")]])
+    
+    # Rasmni o'chirib yubormasdan, suhbatni to'g'ri boshlash uchun xabar yuboramiz
     await context.bot.send_message(
         chat_id=query.message.chat_id,
         text=f"✏️ <b>ID: {prod_id}</b> bo'lgan mahsulot uchun yangi matn (tavsif) yuboring:",
@@ -1184,13 +1181,15 @@ async def admin_edit_prod_save(update: Update, context: ContextTypes.DEFAULT_TYP
     
     await update.message.reply_text("✅ Mahsulot tavsifi muvaffaqiyatli yangilandi!")
     
-    query_obj = type('obj', (object,), {
-        'answer': lambda *a, **kw: None,
-        'message': update.message,
-        'data': f"adelcat_{cat}_{page}"
-    })()
-    
-    update.callback_query = query_obj
+    # Qayta ro'yxatni ko'rsatamiz
+    class DummyQuery:
+        def __init__(self, message, data):
+            self.message = message
+            self.data = data
+        async def answer(self, *a, **kw):
+            pass
+
+    update.callback_query = DummyQuery(update.message, f"adelcat_{cat}_{page}")
     await admin_del_cat_view(update, context)
     return ConversationHandler.END
 
@@ -1314,12 +1313,8 @@ async def admin_edit_color_start(update: Update, context: ContextTypes.DEFAULT_T
     context.user_data['edit_color_brand'] = brand
     context.user_data['edit_color_page'] = page
     
-    try:
-        await query.message.delete()
-    except:
-        pass
-        
     reply_kb = InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Orqaga", callback_data=f"adelcolcat_{brand}_{page}")]])
+    
     await context.bot.send_message(
         chat_id=query.message.chat_id,
         text=f"✏️ <b>ID: {c_id}</b> bo'lgan rang uchun yangi nom yoki kod yuboring:",
@@ -1342,11 +1337,14 @@ async def admin_edit_color_save(update: Update, context: ContextTypes.DEFAULT_TY
     
     await update.message.reply_text("✅ Rang nomi/kodi muvaffaqiyatli yangilandi!")
     
-    update.callback_query = type('obj', (object,), {
-        'answer': lambda *a, **kw: None,
-        'message': update.message,
-        'data': f"adelcolcat_{brand}_{page}"
-    })()
+    class DummyQuery:
+        def __init__(self, message, data):
+            self.message = message
+            self.data = data
+        async def answer(self, *a, **kw):
+            pass
+
+    update.callback_query = DummyQuery(update.message, f"adelcolcat_{brand}_{page}")
     await admin_del_color_cat_view(update, context)
     return ConversationHandler.END
 
@@ -1416,7 +1414,7 @@ if __name__ == "__main__":
     application.add_handler(del_brand_handler)
 
     add_color_handler = ConversationHandler(
-        entry_points=[CallbackQueryHandler(acolor_start, pattern="^acolor_start$")],
+        entry_points=[CallbackQueryHandler(add_color_start, pattern="^acolor_start$")],
         states={
             ADD_BRAND_MENU: [CallbackQueryHandler(add_color_brand, pattern="^abrand_")],
             ADD_COLOR_PHOTO: [
@@ -1476,7 +1474,6 @@ if __name__ == "__main__":
     )
     application.add_handler(edit_color_handler)
 
-    # Muhim: Maxsus callback handlerlarni ro'yxatning boshiga qo'yamiz
     application.add_handlers([
         CallbackQueryHandler(admin_del_prod_menu, pattern="^admin_del_prod_menu$"),
         CallbackQueryHandler(admin_del_cat_view, pattern="^adelcat_"),
@@ -1500,7 +1497,4 @@ if __name__ == "__main__":
     keep_alive()
     
     print("Bot muvaffaqiyatli ishga tushdi...")
-    try:
-        application.run_polling(drop_pending_updates=True)
-    except Exception as e:
-        print(f"Xatolik yuz berdi: {e}")
+    application.run_polling()
