@@ -1079,41 +1079,54 @@ async def admin_del_cat_view(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await context.bot.send_message(chat_id=query.message.chat_id, text="Bu bo'limda o'chirish uchun mahsulotlar yo'q.", reply_markup=back_kb)
         return
         
-    limit = 1
-    total_pages = len(products)
+    # Har bir sahifada 5 tadan mahsulot chiqadi (katalogdagi kabi)
+    limit = 5
+    total_pages = (len(products) + limit - 1) // limit
     if page >= total_pages:
         page = total_pages - 1
     if page < 0:
         page = 0
         
-    prod_id, desc, photo = products[page]
+    start_idx = page * limit
+    end_idx = start_idx + limit
+    page_products = products[start_idx:end_idx]
     
-    caption = f"🗑 <b>Mahsulotni Boshqarish</b>\n🆔 <b>ID: {prod_id}</b> | 📂 Bo'lim: <b>{cat}</b>\n📄 Sahifa: {page+1} / {total_pages}"
-    if desc:
-        caption += f"\n\n{desc}"
+    # Har bir mahsulotni o'chirish va tahrirlash tugmalari bilan yuboramiz
+    for p in page_products:
+        prod_id, desc, photo = p[0], p[1], p[2]
+        caption = f"🆔 <b>ID: {prod_id}</b> | 📂 Bo'lim: <b>{cat}</b>"
+        if desc:
+            caption += f"\n{desc}"
+            
+        markup = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("❌ O'chirish", callback_data=f"adelprod_del_{cat}_{prod_id}_{page}"),
+                InlineKeyboardButton("✏️ Tahrirlash", callback_data=f"adelprod_edit_{cat}_{prod_id}_{page}")
+            ]
+        ])
         
-    action_buttons = [
-        [InlineKeyboardButton("❌ O'chirish", callback_data=f"adelprod_del_{cat}_{prod_id}_{page}"),
-         InlineKeyboardButton("✏️ Tahrirlash", callback_data=f"adelprod_edit_{cat}_{prod_id}_{page}")]
-    ]
-    
-    nav_buttons = []
-    if page > 0:
-        nav_buttons.append(InlineKeyboardButton("⬅️ Oldingi", callback_data=f"adelcat_{cat}_{page-1}"))
-    if page < total_pages - 1:
-        nav_buttons.append(InlineKeyboardButton("Keyingi ➡️", callback_data=f"adelcat_{cat}_{page+1}"))
+        if photo:
+            await context.bot.send_photo(chat_id=query.message.chat_id, photo=photo, caption=caption, parse_mode="HTML", reply_markup=markup)
+        else:
+            await context.bot.send_message(chat_id=query.message.chat_id, text=caption, parse_mode="HTML", reply_markup=markup)
+            
+    # Sahifalash tugmalari (katalogdagi kabi raqamli tugmalar)
+    page_buttons = []
+    for i in range(total_pages):
+        btn_text = f"• {i+1} •" if i == page else str(i+1)
+        page_buttons.append(InlineKeyboardButton(btn_text, callback_data=f"adelcat_{cat}_{i}"))
         
-    if nav_buttons:
-        action_buttons.append(nav_buttons)
+    keyboard_layout = []
+    if len(page_buttons) > 1:
+        keyboard_layout.append(page_buttons)
         
-    action_buttons.append([InlineKeyboardButton("⬅️ Orqaga (Bo'limlar)", callback_data="admin_del_prod_menu")])
+    keyboard_layout.append([InlineKeyboardButton("⬅️ Orqaga (Bo'limlar)", callback_data="admin_del_prod_menu")])
     
-    markup = InlineKeyboardMarkup(action_buttons)
-    
-    if photo:
-        await context.bot.send_photo(chat_id=query.message.chat_id, photo=photo, caption=caption, parse_mode="HTML", reply_markup=markup)
-    else:
-        await context.bot.send_message(chat_id=query.message.chat_id, text=caption, parse_mode="HTML", reply_markup=markup)
+    await context.bot.send_message(
+        chat_id=query.message.chat_id, 
+        text=f"📄 Sahifani tanlang (Jami: {len(products)} ta mahsulot):", 
+        reply_markup=InlineKeyboardMarkup(keyboard_layout)
+    )
 
 async def admin_del_prod_execute(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -1130,8 +1143,7 @@ async def admin_del_prod_execute(update: Update, context: ContextTypes.DEFAULT_T
     conn.commit()
     conn.close()
     
-    next_page = current_page - 1 if current_page > 0 else 0
-    query.data = f"adelcat_{cat}_{next_page}"
+    query.data = f"adelcat_{cat}_{current_page}"
     await admin_del_cat_view(update, context)
 
 async def admin_edit_prod_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1175,7 +1187,6 @@ async def admin_edit_prod_save(update: Update, context: ContextTypes.DEFAULT_TYP
     
     await update.message.reply_text("✅ Mahsulot tavsifi muvaffaqiyatli yangilandi!")
     
-    # Qayta ko'rish funksiyasiga qaytarish
     context.args = []
     update.callback_query = type('obj', (object,), {
         'answer': lambda *a, **kw: None,
