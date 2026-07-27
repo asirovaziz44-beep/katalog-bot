@@ -37,13 +37,12 @@ TOKEN = "8722268472:AAEgcBPD0m1jWjP_5WjXN9z080U9v2BT20c"
 MANAGER_USERNAME = "azizbek_mebel"
 
 # --- RENDER DATA DISK YO'LI ---
-# Render'da /data papkasi disk sifatida ulanadi, shuning uchun baza shu yerda saqlanadi
 DB_DIR = "/data"
 if not os.path.exists(DB_DIR):
     try:
         os.makedirs(DB_DIR, exist_ok=True)
     except Exception:
-        DB_DIR = "." # Agar lokal kompyuterda ishlatilsa joriy papkaga saqlaydi
+        DB_DIR = "."
 
 DB_PATH = os.path.join(DB_DIR, "furniture_bot.db")
 
@@ -120,14 +119,16 @@ def main_menu_keyboard(lang="uz"):
             [InlineKeyboardButton("📁 Каталог", callback_data="main_catalog"),
              InlineKeyboardButton("🎨 Цвета / Бренды", callback_data="main_colors")],
             [InlineKeyboardButton("📞 Контакты", callback_data="main_info"),
-             InlineKeyboardButton("🌐 Язык", callback_data="main_lang")]
+             InlineKeyboardButton("🌐 Язык", callback_data="main_lang")],
+            [InlineKeyboardButton("🔄 Обновить бот", callback_data="back_to_main")]
         ]
     else:
         keyboard = [
             [InlineKeyboardButton("📁 Katalog", callback_data="main_catalog"),
              InlineKeyboardButton("🎨 Ranglar / Brendlar", callback_data="main_colors")],
             [InlineKeyboardButton("📞 Aloqa", callback_data="main_info"),
-             InlineKeyboardButton("🌐 Til", callback_data="main_lang")]
+             InlineKeyboardButton("🌐 Til", callback_data="main_lang")],
+            [InlineKeyboardButton("🔄 Botni yangilash", callback_data="back_to_main")]
         ]
     return InlineKeyboardMarkup(keyboard)
 
