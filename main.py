@@ -52,8 +52,8 @@ def get_db_connection():
 (
     ADD_CAT, ADD_PHOTO, ADD_DESC, 
     ADD_BRAND_MENU, ADD_NEW_BRAND, ADD_COLOR_PHOTO, ADD_COLOR_NAME,
-    SET_LOGO, SET_INFO, SET_WELCOME, DEL_BRAND, EDIT_PROD_DESC, EDIT_COLOR_NAME
-) = range(13)
+    SET_LOGO, SET_INFO, SET_WELCOME, DEL_BRAND, EDIT_COLOR_NAME
+) = range(12)
 
 def init_db():
     conn = get_db_connection()
@@ -535,7 +535,7 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("⚙️ Ma'lumotlarni sozlash", callback_data="admin_settings"),
          InlineKeyboardButton("🎨 Brendlar va Ranglar", callback_data="admin_brands_menu")],
         [InlineKeyboardButton("➕ Yangi Mahsulot Qo'shish", callback_data="admin_add_prod"),
-         InlineKeyboardButton("🗑 Rasmlarni O'chirish / Tahrirlash", callback_data="admin_del_prod_menu")],
+         InlineKeyboardButton("🗑 Rasmlarni O'chirish", callback_data="admin_del_prod_menu")],
         [InlineKeyboardButton("📊 Statistika", callback_data="admin_stats")],
         [InlineKeyboardButton("❌ Chiqish", callback_data="back_to_main")]
     ]
@@ -1018,7 +1018,7 @@ async def finish_adding_products(update: Update, context: ContextTypes.DEFAULT_T
     await context.bot.send_message(chat_id=query.message.chat_id, text="✅ Barcha mahsulotlar yuklandi!", reply_markup=main_menu_keyboard(lang))
     return ConversationHandler.END
 
-# --- RASMLARNI O'CHIRISH VA TAHRIRLASH (KATEGORIYA TANLASH BILAN) ---
+# --- RASMLARNI O'CHIRISH (KATEGORIYA TANLASH BILAN) ---
 async def admin_del_prod_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -1049,7 +1049,7 @@ async def admin_del_prod_menu(update: Update, context: ContextTypes.DEFAULT_TYPE
         pass
     await context.bot.send_message(
         chat_id=query.message.chat_id, 
-        text="🗑 <b>Rasmlarni boshqarish</b>\nQaysi bo'limdagi rasmlarni o'chirish yoki tahrirlamoqchisiz?", 
+        text="🗑 <b>Rasmlarni o'chirish</b>\nQaysi bo'limdagi rasmlarni o'chirmoqchisiz?", 
         parse_mode="HTML", 
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
@@ -1096,10 +1096,10 @@ async def admin_del_cat_view(update: Update, context: ContextTypes.DEFAULT_TYPE)
         if desc:
             caption += f"\n{desc}"
             
+        # Faqat o'chirish tugmasi qoldirildi
         markup = InlineKeyboardMarkup([
             [
-                InlineKeyboardButton("❌ O'chirish", callback_data=f"adelprod_del_{cat}_{prod_id}_{page}"),
-                InlineKeyboardButton("✏️ Tahrirlash", callback_data=f"adelprod_edit_{cat}_{prod_id}_{page}")
+                InlineKeyboardButton("❌ O'chirish", callback_data=f"adelprod_del_{cat}_{prod_id}_{page}")
             ]
         ])
         
@@ -1127,7 +1127,7 @@ async def admin_del_cat_view(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 async def admin_del_prod_execute(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer()
+    await query.answer("Mahsulot o'chirildi!")
     
     data_parts = query.data.split("_")
     cat = data_parts[2]
@@ -1143,57 +1143,7 @@ async def admin_del_prod_execute(update: Update, context: ContextTypes.DEFAULT_T
     query.data = f"adelcat_{cat}_{current_page}"
     await admin_del_cat_view(update, context)
 
-async def admin_edit_prod_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    
-    data_parts = query.data.split("_")
-    cat = data_parts[2]
-    prod_id = data_parts[3]
-    page = data_parts[4]
-    
-    context.user_data['edit_prod_id'] = prod_id
-    context.user_data['edit_prod_cat'] = cat
-    context.user_data['edit_prod_page'] = page
-    
-    reply_kb = InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Orqaga", callback_data=f"adelcat_{cat}_{page}")]])
-    
-    # Rasmni o'chirib yubormasdan, suhbatni to'g'ri boshlash uchun xabar yuboramiz
-    await context.bot.send_message(
-        chat_id=query.message.chat_id,
-        text=f"✏️ <b>ID: {prod_id}</b> bo'lgan mahsulot uchun yangi matn (tavsif) yuboring:",
-        parse_mode="HTML",
-        reply_markup=reply_kb
-    )
-    return EDIT_PROD_DESC
-
-async def admin_edit_prod_save(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    new_desc = update.message.text
-    prod_id = context.user_data.get('edit_prod_id')
-    cat = context.user_data.get('edit_prod_cat', 'Boshqa')
-    page = int(context.user_data.get('edit_prod_page', 0))
-    
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("UPDATE products SET description = ? WHERE id = ?", (new_desc, prod_id))
-    conn.commit()
-    conn.close()
-    
-    await update.message.reply_text("✅ Mahsulot tavsifi muvaffaqiyatli yangilandi!")
-    
-    # Qayta ro'yxatni ko'rsatamiz
-    class DummyQuery:
-        def __init__(self, message, data):
-            self.message = message
-            self.data = data
-        async def answer(self, *a, **kw):
-            pass
-
-    update.callback_query = DummyQuery(update.message, f"adelcat_{cat}_{page}")
-    await admin_del_cat_view(update, context)
-    return ConversationHandler.END
-
-# --- RANGLARNI BO'LIMLAR BO'YICHA O'CHIRISH VA TAHRIRLASH ---
+# --- RANGLARNI BO'LIMLAR BO'YICHA O'CHIRISH ---
 async def admin_del_colors_select_brand(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -1259,8 +1209,7 @@ async def admin_del_color_cat_view(update: Update, context: ContextTypes.DEFAULT
         caption += f"\nRang nomi/kodi: <b>{c_name}</b>"
         
     action_buttons = [
-        [InlineKeyboardButton("❌ O'chirish", callback_data=f"adelcoldel_{brand}_{c_id}_{page}"),
-         InlineKeyboardButton("✏️ Tahrirlash", callback_data=f"adelcoldata_{brand}_{c_id}_{page}")]
+        [InlineKeyboardButton("❌ O'chirish", callback_data=f"adelcoldel_{brand}_{c_id}_{page}")]
     ]
     
     nav_buttons = []
@@ -1283,7 +1232,7 @@ async def admin_del_color_cat_view(update: Update, context: ContextTypes.DEFAULT
 
 async def admin_del_color_execute(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer()
+    await query.answer("Rang o'chirildi!")
     
     data_parts = query.data.split("_")
     brand = data_parts[1]
@@ -1299,54 +1248,6 @@ async def admin_del_color_execute(update: Update, context: ContextTypes.DEFAULT_
     next_page = current_page - 1 if current_page > 0 else 0
     query.data = f"adelcolcat_{brand}_{next_page}"
     await admin_del_color_cat_view(update, context)
-
-async def admin_edit_color_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    
-    data_parts = query.data.split("_")
-    brand = data_parts[1]
-    c_id = data_parts[2]
-    page = data_parts[3]
-    
-    context.user_data['edit_color_id'] = c_id
-    context.user_data['edit_color_brand'] = brand
-    context.user_data['edit_color_page'] = page
-    
-    reply_kb = InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Orqaga", callback_data=f"adelcolcat_{brand}_{page}")]])
-    
-    await context.bot.send_message(
-        chat_id=query.message.chat_id,
-        text=f"✏️ <b>ID: {c_id}</b> bo'lgan rang uchun yangi nom yoki kod yuboring:",
-        parse_mode="HTML",
-        reply_markup=reply_kb
-    )
-    return EDIT_COLOR_NAME
-
-async def admin_edit_color_save(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    new_name = update.message.text
-    c_id = context.user_data.get('edit_color_id')
-    brand = context.user_data.get('edit_color_brand')
-    page = int(context.user_data.get('edit_color_page', 0))
-    
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("UPDATE colors SET color_name = ? WHERE id = ?", (new_name, c_id))
-    conn.commit()
-    conn.close()
-    
-    await update.message.reply_text("✅ Rang nomi/kodi muvaffaqiyatli yangilandi!")
-    
-    class DummyQuery:
-        def __init__(self, message, data):
-            self.message = message
-            self.data = data
-        async def answer(self, *a, **kw):
-            pass
-
-    update.callback_query = DummyQuery(update.message, f"adelcolcat_{brand}_{page}")
-    await admin_del_color_cat_view(update, context)
-    return ConversationHandler.END
 
 async def noop_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.callback_query.answer()
@@ -1459,20 +1360,6 @@ if __name__ == "__main__":
         fallbacks=[CommandHandler("cancel", cancel), CallbackQueryHandler(back_to_admin, pattern="^back_to_admin$")]
     )
     application.add_handler(add_product_handler)
-
-    edit_prod_handler = ConversationHandler(
-        entry_points=[CallbackQueryHandler(admin_edit_prod_start, pattern="^adelprod_edit_")],
-        states={EDIT_PROD_DESC: [MessageHandler(filters.TEXT & ~filters.COMMAND, admin_edit_prod_save)]},
-        fallbacks=[CommandHandler("cancel", cancel), CallbackQueryHandler(admin_panel, pattern="^back_to_admin$")]
-    )
-    application.add_handler(edit_prod_handler)
-
-    edit_color_handler = ConversationHandler(
-        entry_points=[CallbackQueryHandler(admin_edit_color_start, pattern="^adelcoldata_")],
-        states={EDIT_COLOR_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, admin_edit_color_save)]},
-        fallbacks=[CommandHandler("cancel", cancel), CallbackQueryHandler(admin_panel, pattern="^back_to_admin$")]
-    )
-    application.add_handler(edit_color_handler)
 
     application.add_handlers([
         CallbackQueryHandler(admin_del_prod_menu, pattern="^admin_del_prod_menu$"),
