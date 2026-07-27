@@ -1096,7 +1096,6 @@ async def admin_del_cat_view(update: Update, context: ContextTypes.DEFAULT_TYPE)
         if desc:
             caption += f"\n{desc}"
             
-        # Faqat o'chirish tugmasi qoldirildi
         markup = InlineKeyboardMarkup([
             [
                 InlineKeyboardButton("❌ O'chirish", callback_data=f"adelprod_del_{cat}_{prod_id}_{page}")
@@ -1127,21 +1126,25 @@ async def admin_del_cat_view(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 async def admin_del_prod_execute(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer("Mahsulot o'chirildi!")
     
     data_parts = query.data.split("_")
     cat = data_parts[2]
     prod_id = data_parts[3]
     current_page = int(data_parts[4])
     
+    # Bazadan o'chirish
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("DELETE FROM products WHERE id = ?", (prod_id,))
     conn.commit()
     conn.close()
     
-    query.data = f"adelcat_{cat}_{current_page}"
-    await admin_del_cat_view(update, context)
+    # Tugma bosilgan xabarni (rasm va uning tugmasini) chatdan butunlay o'chirib yuborish
+    try:
+        await query.message.delete()
+        await query.answer("Mahsulot o'chirildi!")
+    except Exception as e:
+        await query.answer("Mahsulot o'chirildi!", show_alert=False)
 
 # --- RANGLARNI BO'LIMLAR BO'YICHA O'CHIRISH ---
 async def admin_del_colors_select_brand(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1232,7 +1235,6 @@ async def admin_del_color_cat_view(update: Update, context: ContextTypes.DEFAULT
 
 async def admin_del_color_execute(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer("Rang o'chirildi!")
     
     data_parts = query.data.split("_")
     brand = data_parts[1]
@@ -1244,6 +1246,12 @@ async def admin_del_color_execute(update: Update, context: ContextTypes.DEFAULT_
     cursor.execute("DELETE FROM colors WHERE id = ?", (c_id,))
     conn.commit()
     conn.close()
+    
+    try:
+        await query.message.delete()
+        await query.answer("Rang o'chirildi!")
+    except:
+        await query.answer("Rang o'chirildi!")
     
     next_page = current_page - 1 if current_page > 0 else 0
     query.data = f"adelcolcat_{brand}_{next_page}"
