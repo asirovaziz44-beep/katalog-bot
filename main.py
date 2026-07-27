@@ -1500,4 +1500,7 @@ if __name__ == "__main__":
     keep_alive()
     
     print("Bot muvaffaqiyatli ishga tushdi...")
-    application.run_polling()
+    try:
+        application.run_polling(drop_pending_updates=True)
+    except Exception as e:
+        print(f"Xatolik yuz berdi: {e}")
