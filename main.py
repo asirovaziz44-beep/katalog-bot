@@ -262,7 +262,6 @@ async def user_catalog_click(update: Update, context: ContextTypes.DEFAULT_TYPE)
     products = cursor.fetchall()
     conn.close()
     
-    # Eski xabarni o'chirish (Chat toza turishi uchun)[cite: 3]
     try:
         await query.message.delete()
     except:
@@ -405,7 +404,6 @@ async def user_color_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
             selected_brand = b
             break
             
-    # Eski xabarni tozalash (Chatni tartibli saqlash uchun)[cite: 3]
     try:
         await query.message.delete()
     except:
