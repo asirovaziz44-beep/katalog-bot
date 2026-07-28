@@ -280,6 +280,14 @@ async def user_catalog_click(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return
         
     limit = 5
+    total_pages = (len(products) + limit - 1) // limit
+    
+    # Xavfsizlik uchun sahifa chegaralarini to'g'irlash
+    if page >= total_pages:
+        page = total_pages - 1
+    if page < 0:
+        page = 0
+        
     start_idx = page * limit
     end_idx = start_idx + limit
     page_products = products[start_idx:end_idx]
@@ -297,12 +305,12 @@ async def user_catalog_click(update: Update, context: ContextTypes.DEFAULT_TYPE)
             if caption:
                 await context.bot.send_message(chat_id=query.message.chat_id, text=caption, parse_mode="HTML", disable_web_page_preview=True)
             
-    total_pages = (len(products) + limit - 1) // limit
     page_buttons = []
     for i in range(total_pages):
         btn_text = f"• {i+1} •" if i == page else str(i+1)
         page_buttons.append(InlineKeyboardButton(btn_text, callback_data=f"ucat_{cat}_{i}"))
         
+    # Sahifa raqamlarini 5 tadan qatorlarga bo'lish (Sahifalash muammosini hal qiladi)
     keyboard_layout = []
     chunk_size = 5
     for i in range(0, len(page_buttons), chunk_size):
@@ -427,6 +435,13 @@ async def user_color_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
         
     limit = 5
+    total_pages = (len(colors) + limit - 1) // limit
+    
+    if page >= total_pages:
+        page = total_pages - 1
+    if page < 0:
+        page = 0
+        
     start_idx = page * limit
     end_idx = start_idx + limit
     page_colors = colors[start_idx:end_idx]
@@ -442,7 +457,6 @@ async def user_color_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             await context.bot.send_message(chat_id=query.message.chat_id, text=caption, parse_mode="HTML")
             
-    total_pages = (len(colors) + limit - 1) // limit
     page_buttons = []
     for i in range(total_pages):
         btn_text = f"• {i+1} •" if i == page else str(i+1)
