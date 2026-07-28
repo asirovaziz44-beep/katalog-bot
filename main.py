@@ -245,6 +245,7 @@ async def user_catalog_click(update: Update, context: ContextTypes.DEFAULT_TYPE)
     query = update.callback_query
     await query.answer()
     
+    # To'g'rilandi: TV_zona yoki Yumshoq_mebel kabi ikki so'zdan iborat kategoriyalarni to'g'ri o'qish uchun
     data_parts = query.data.split("_")
     if data_parts[-1].isdigit():
         page = int(data_parts[-1])
@@ -755,7 +756,7 @@ async def add_color_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("⬅️ Orqaga", callback_data="acolor_start")]
     ]
     await update.message.reply_text(
-        "🎨 Rang nomi yoki kodini yuboring (masalan: #FFFFFF yoki W1000 ST9).\n"
+        "🎨 Rang nomi yoki kodini yuboring (masalan: #FFFFFF või W1000 ST9).\n"
         "Agar yozishni xohlamasangiz, o'tkazib yuborishingiz mumkin:",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
@@ -933,11 +934,8 @@ async def add_prod_cat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     
-    # TV zona uchun katakchalar bir nechta so'zdan iborat bo'lgani uchun to'g'ri ajratib olamiz
-    if query.data.startswith("cat_TV_zona"):
-        cat = "TV_zona"
-    else:
-        cat = query.data.split("_")[1]
+    # To'g'rilandi: cat_dan keyingi barcha qismini kategoriya nomi sifatida olamiz (masalan: Yumshoq_mebel yoki TV_zona)
+    cat = query.data[4:]
         
     context.user_data['prod_cat'] = cat
     
@@ -1197,7 +1195,7 @@ async def admin_del_color_cat_view(update: Update, context: ContextTypes.DEFAULT
     except:
         pass
         
-    back_kb = InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Orqaga (Brendlar)", callback_data="adel_colors_select_brand")]])
+    back_kb = InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Orqaga (Brendlar)", callback_data="admin_colors_select_brand")]])
 
     if not colors:
         await context.bot.send_message(chat_id=query.message.chat_id, text="Bu bo'limda ranglar mavjud emas.", reply_markup=back_kb)
@@ -1228,7 +1226,7 @@ async def admin_del_color_cat_view(update: Update, context: ContextTypes.DEFAULT
     if nav_buttons:
         action_buttons.append(nav_buttons)
         
-    action_buttons.append([InlineKeyboardButton("⬅️ Orqaga (Brendlar)", callback_data="adel_colors_select_brand")])
+    action_buttons.append([InlineKeyboardButton("⬅️ Orqaga (Brendlar)", callback_data="admin_colors_select_brand")])
     
     markup = InlineKeyboardMarkup(action_buttons)
     
@@ -1327,7 +1325,7 @@ if __name__ == "__main__":
     application.add_handler(del_brand_handler)
 
     add_color_handler = ConversationHandler(
-        entry_points=[CallbackQueryHandler(add_color_start, pattern="^acolor_start$")],
+        entry_points=[CallbackQueryHandler(acolor_start, pattern="^acolor_start$")],
         states={
             ADD_BRAND_MENU: [CallbackQueryHandler(add_color_brand, pattern="^abrand_")],
             ADD_COLOR_PHOTO: [
