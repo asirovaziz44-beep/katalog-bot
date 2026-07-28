@@ -262,6 +262,7 @@ async def user_catalog_click(update: Update, context: ContextTypes.DEFAULT_TYPE)
     products = cursor.fetchall()
     conn.close()
     
+    # Eski xabarni o'chirish (Chat toza turishi uchun)[cite: 3]
     try:
         await query.message.delete()
     except:
@@ -282,7 +283,6 @@ async def user_catalog_click(update: Update, context: ContextTypes.DEFAULT_TYPE)
     limit = 5
     total_pages = (len(products) + limit - 1) // limit
     
-    # Xavfsizlik uchun sahifa chegaralarini to'g'irlash
     if page >= total_pages:
         page = total_pages - 1
     if page < 0:
@@ -310,7 +310,6 @@ async def user_catalog_click(update: Update, context: ContextTypes.DEFAULT_TYPE)
         btn_text = f"• {i+1} •" if i == page else str(i+1)
         page_buttons.append(InlineKeyboardButton(btn_text, callback_data=f"ucat_{cat}_{i}"))
         
-    # Sahifa raqamlarini 5 tadan qatorlarga bo'lish (Sahifalash muammosini hal qiladi)
     keyboard_layout = []
     chunk_size = 5
     for i in range(0, len(page_buttons), chunk_size):
@@ -406,6 +405,7 @@ async def user_color_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
             selected_brand = b
             break
             
+    # Eski xabarni tozalash (Chatni tartibli saqlash uchun)[cite: 3]
     try:
         await query.message.delete()
     except:
