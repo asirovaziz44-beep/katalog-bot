@@ -932,7 +932,13 @@ async def admin_add_prod_back_handler(update: Update, context: ContextTypes.DEFA
 async def add_prod_cat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    cat = query.data.split("_")[1]
+    
+    # TV zona uchun katakchalar bir nechta so'zdan iborat bo'lgani uchun to'g'ri ajratib olamiz
+    if query.data.startswith("cat_TV_zona"):
+        cat = "TV_zona"
+    else:
+        cat = query.data.split("_")[1]
+        
     context.user_data['prod_cat'] = cat
     
     try:
@@ -1018,7 +1024,7 @@ async def finish_adding_products(update: Update, context: ContextTypes.DEFAULT_T
     await context.bot.send_message(chat_id=query.message.chat_id, text="✅ Barcha mahsulotlar yuklandi!", reply_markup=main_menu_keyboard(lang))
     return ConversationHandler.END
 
-# --- RASMLARNI O'CHIRISH (KATEGORIYA TANLASH BILAN) ---
+# --- RASMLARni O'CHIRISH (KATEGORIYA TANLASH BILAN) ---
 async def admin_del_prod_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -1132,14 +1138,12 @@ async def admin_del_prod_execute(update: Update, context: ContextTypes.DEFAULT_T
     prod_id = data_parts[3]
     current_page = int(data_parts[4])
     
-    # Bazadan o'chirish
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("DELETE FROM products WHERE id = ?", (prod_id,))
     conn.commit()
     conn.close()
     
-    # Tugma bosilgan xabarni (rasm va uning tugmasini) chatdan butunlay o'chirib yuborish
     try:
         await query.message.delete()
         await query.answer("Mahsulot o'chirildi!")
