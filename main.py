@@ -304,8 +304,9 @@ async def user_catalog_click(update: Update, context: ContextTypes.DEFAULT_TYPE)
         page_buttons.append(InlineKeyboardButton(btn_text, callback_data=f"ucat_{cat}_{i}"))
         
     keyboard_layout = []
-    if len(page_buttons) > 1:
-        keyboard_layout.append(page_buttons)
+    chunk_size = 5
+    for i in range(0, len(page_buttons), chunk_size):
+        keyboard_layout.append(page_buttons[i:i + chunk_size])
         
     keyboard_layout.append([InlineKeyboardButton(f"⬅️ {back_text}", callback_data=back_callback)])
     
@@ -448,8 +449,9 @@ async def user_color_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
         page_buttons.append(InlineKeyboardButton(btn_text, callback_data=f"ucol_{brand_clean_query}_{i}"))
         
     keyboard_layout = []
-    if len(page_buttons) > 1:
-        keyboard_layout.append(page_buttons)
+    chunk_size = 5
+    for i in range(0, len(page_buttons), chunk_size):
+        keyboard_layout.append(page_buttons[i:i + chunk_size])
         
     keyboard_layout.append([InlineKeyboardButton(back_text_str, callback_data=back_callback)])
     
@@ -937,6 +939,12 @@ async def add_prod_cat(update: Update, context: ContextTypes.DEFAULT_TYPE):
         cat = "TV_zona"
     elif query.data.startswith("cat_Yumshoq_mebel"):
         cat = "Yumshoq_mebel"
+    elif query.data.startswith("cat_Kattalar_yotoqxonasi"):
+        cat = "Kattalar_yotoqxonasi"
+    elif query.data.startswith("cat_Bolalar_yotoqxonasi"):
+        cat = "Bolalar_yotoqxonasi"
+    elif query.data.startswith("cat_Shkaf_kupe_garderob"):
+        cat = "Shkaf_kupe_garderob"
     else:
         cat = query.data.split("_")[1]
         
@@ -1120,8 +1128,9 @@ async def admin_del_cat_view(update: Update, context: ContextTypes.DEFAULT_TYPE)
         page_buttons.append(InlineKeyboardButton(btn_text, callback_data=f"adelcat_{cat}_{i}"))
         
     keyboard_layout = []
-    if len(page_buttons) > 1:
-        keyboard_layout.append(page_buttons)
+    chunk_size = 5
+    for i in range(0, len(page_buttons), chunk_size):
+        keyboard_layout.append(page_buttons[i:i + chunk_size])
         
     keyboard_layout.append([InlineKeyboardButton("⬅️ Orqaga (Bo'limlar)", callback_data="admin_del_prod_menu")])
     
