@@ -1317,7 +1317,7 @@ if __name__ == "__main__":
     application.add_handler(settings_handler)
 
     add_brand_handler = ConversationHandler(
-        entry_points=[CallbackQueryHandler(abrand_start, pattern="^abrand_add$")],
+        entry_points=[CallbackQueryHandler(add_brand_start, pattern="^abrand_add$")],
         states={ADD_NEW_BRAND: [MessageHandler(filters.TEXT & ~filters.COMMAND, add_brand_save)]},
         fallbacks=[CommandHandler("cancel", cancel), CallbackQueryHandler(admin_brands_menu, pattern="^admin_brands_menu$")]
     )
