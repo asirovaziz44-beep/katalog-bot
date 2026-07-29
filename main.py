@@ -245,12 +245,6 @@ async def user_catalog_click(update: Update, context: ContextTypes.DEFAULT_TYPE)
     query = update.callback_query
     await query.answer()
     
-    # Eskilarini tozalash (oldingi xabarlarni o'chirish)
-    try:
-        await query.message.delete()
-    except:
-        pass
-    
     data_parts = query.data.split("_")
     if data_parts[-1].isdigit():
         page = int(data_parts[-1])
@@ -267,6 +261,11 @@ async def user_catalog_click(update: Update, context: ContextTypes.DEFAULT_TYPE)
     cursor.execute("SELECT description, photo FROM products WHERE category = ?", (cat,))
     products = cursor.fetchall()
     conn.close()
+    
+    try:
+        await query.message.delete()
+    except:
+        pass
 
     if cat in ["Kattalar_yotoqxonasi", "Bolalar_yotoqxonasi", "Shkaf_kupe_garderob"]:
         back_callback = "subcat_yotoqxona"
@@ -385,19 +384,11 @@ async def user_akril_submenu(update: Update, context: ContextTypes.DEFAULT_TYPE)
 async def user_color_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    
-    # Eskilarini tozalash (oldingi xabarlarni o'chirish)
-    try:
-        await query.message.delete()
-    except:
-        pass
-        
     lang = get_current_lang()
     
     data_parts = query.data.split("_")
     page = int(data_parts[-1])
-    brand_parts = data_parts[1:-1]
-    brand_clean_query = "_".join(brand_parts)
+    brand_clean_query = "_".join(data_parts[1:-1])
     
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -407,13 +398,24 @@ async def user_color_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     selected_brand = None
     for b in brands:
-        clean_b = b.replace(' ', '_').replace('/', '').replace(':', '')
-        if clean_b == brand_clean_query:
+        clean_b = b.replace(' ', '_').replace('(', '').replace(')', '').replace('/', '').replace(':', '').replace('__', '_')
+        if clean_b == brand_clean_query or b.replace(' ', '_') == brand_clean_query:
             selected_brand = b
             break
+            
+    if not selected_brand and brands:
+        for b in brands:
+            if brand_clean_query in b or b in brand_clean_query:
+                selected_brand = b
+                break
+
+    try:
+        await query.message.delete()
+    except:
+        pass
 
     if not selected_brand:
-        await context.bot.send_message(chat_id=query.message.chat_id, text="Xatolik.", reply_markup=main_menu_keyboard(lang))
+        await context.bot.send_message(chat_id=query.message.chat_id, text="Xatolik: Brend topilmadi.", reply_markup=main_menu_keyboard(lang))
         return
 
     conn = get_db_connection()
