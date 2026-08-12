@@ -1795,8 +1795,7 @@ if __name__ == "__main__":
                 CallbackQueryHandler(back_to_admin, pattern="^back_to_admin$")
             ],
             ADD_VIDEO_FILE: [
-                # TO'G'RILANDI: filters.DOCUMENT o'rniga filters.document.ALL yozildi
-                MessageHandler(filters.VIDEO | filters.PHOTO | filters.document.ALL, admin_add_video_file),
+                MessageHandler(filters.VIDEO | filters.PHOTO | filters.Document.ALL, admin_add_video_file),
                 CallbackQueryHandler(admin_add_video_menu, pattern="^admin_add_video_menu$"),
                 CallbackQueryHandler(back_to_admin, pattern="^back_to_admin$")
             ],
@@ -1878,7 +1877,7 @@ if __name__ == "__main__":
         CallbackQueryHandler(user_videos_list_click, pattern="^uwat_"),
 
         CallbackQueryHandler(main_info, pattern="^main_info$"),
-        CallbackQueryHandler(main_lang, callback_data="main_lang" if False else main_lang),
+        CallbackQueryHandler(main_lang, pattern="^main_lang$"),
         CallbackQueryHandler(set_lang, pattern="^set_lang_"),
         CallbackQueryHandler(back_to_main, pattern="^back_to_main$")
     ])
