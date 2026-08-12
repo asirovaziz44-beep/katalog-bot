@@ -55,8 +55,8 @@ def get_db_connection():
     ADD_CAT, ADD_PHOTO, ADD_DESC, 
     ADD_BRAND_MENU, ADD_NEW_BRAND, ADD_COLOR_PHOTO, ADD_COLOR_NAME,
     SET_LOGO, SET_INFO, SET_WELCOME, DEL_BRAND, EDIT_COLOR_NAME,
-    ADD_VIDEO_CAT, ADD_VIDEO_FILE, ADD_VIDEO_DESC
-) = range(15)
+    ADD_VIDEO_CAT, ADD_VIDEO_FILE, ADD_VIDEO_DESC, BROADCAST_TEXT
+) = range(16)
 
 def init_db():
     conn = get_db_connection()
@@ -220,7 +220,6 @@ async def user_videos_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     lang = get_current_lang()
     
-    # Mualliflik huquqi eslatmasi qo'shildi
     copyright_notice = "⚖️ **Mualliflik huquqi bo'yicha eslatma:**\nBotimizdagi videoroliklar internet tarmoqlaridan olingan bo'lib, ular tijorat maqsadida ishlatilmaydi. Barcha huquqlar o'z mualliflariga tegishli\n\n"
     
     if lang == "ru":
@@ -309,7 +308,6 @@ async def user_videos_list_click(update: Update, context: ContextTypes.DEFAULT_T
         
     keyboard_layout.append([InlineKeyboardButton(f"⬅️ {back_text}", callback_data="main_videos")])
     
-    # Ichki bo'lim (sahifa) ochilganda chiqadigan mualliflik huquqi eslatmasi
     copyright_notice = "⚖️ **Mualliflik huquqi bo'yicha eslatma:**\nBotimizdagi videoroliklar internet tarmoqlaridan olingan bo'lib, ular tijorat maqsadida ishlatilmaydi. Barcha huquqlar o'z mualliflariga tegishli\n\n"
     if lang == "ru":
         copyright_notice = "⚖️ **Уведомление об авторских правах:**\nВидеоролики в нашем боте взяты из интернет-сети и не используются в коммерческих целях. Все права принадлежат их авторам\n\n"
@@ -690,7 +688,8 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
          InlineKeyboardButton("💡 Video va Layfhak Qo'shish", callback_data="admin_add_video_menu")],
         [InlineKeyboardButton("🗑 Rasmlarni O'chirish", callback_data="admin_del_prod_menu"),
          InlineKeyboardButton("🎬 Videolarni O'chirish", callback_data="admin_del_video_menu")],
-        [InlineKeyboardButton("📊 Statistika", callback_data="admin_stats")],
+        [InlineKeyboardButton("📊 Statistika", callback_data="admin_stats"),
+         InlineKeyboardButton("📢 Xabar yuborish", callback_data="broadcast_start")],
         [InlineKeyboardButton("❌ Chiqish", callback_data="back_to_main")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -713,6 +712,61 @@ async def back_to_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.callback_query:
         await update.callback_query.answer()
     await admin_panel(update, context)
+
+async def broadcast_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    
+    reply_kb = InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Orqaga", callback_data="back_to_admin")]])
+    text = (
+        "📢 <b>Foydalanuvchilarga xabar yuborish (Rassilka)</b>\n\n"
+        "Barcha ro'yxatdan o'tgan foydalanuvchilarga yubormoqchi bo'lgan xabaringizni yuboring "
+        "(Matn, rasm, video yoki istalgan xabar turini yuborishingiz mumkin):"
+    )
+    try:
+        await query.message.delete()
+    except:
+        pass
+    await context.bot.send_message(chat_id=query.message.chat_id, text=text, parse_mode="HTML", reply_markup=reply_kb)
+    return BROADCAST_TEXT
+
+async def broadcast_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    message_to_send = update.message
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT user_id FROM users")
+    users = cursor.fetchall()
+    conn.close()
+    
+    success_count = 0
+    blocked_count = 0
+    fail_count = 0
+    
+    status_msg = await update.message.reply_text("⏳ Xabar foydalanuvchilarga yuborilmoqda, iltimos kuting...")
+    
+    for user in users:
+        u_id = user[0]
+        try:
+            await message_to_send.copy(chat_id=u_id)
+            success_count += 1
+        except Exception as e:
+            err_str = str(e).lower()
+            if "blocked" in err_str or "deactivated" in err_str or "bot was blocked" in err_str:
+                blocked_count += 1
+            else:
+                fail_count += 1
+                
+    result_text = (
+        f"✅ <b>Rassilka yakunlandi!</b>\n\n"
+        f"📤 Muvaffaqiyatli yuborildi: <b>{success_count} ta</b>\n"
+        f"🚫 Botni bloklaganlar: <b>{blocked_count} ta</b>\n"
+        f"⚠️ Xatolik yuz berdi: <b>{fail_count} ta</b>"
+    )
+    
+    lang = get_current_lang()
+    await status_msg.edit_text(result_text, parse_mode="HTML", reply_markup=main_menu_keyboard(lang))
+    return ConversationHandler.END
 
 async def admin_add_video_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -1487,8 +1541,6 @@ async def admin_del_prod_execute(update: Update, context: ContextTypes.DEFAULT_T
     query.data = f"adelcat_{cat}_{current_page}"
     await admin_del_cat_view(update, context)
 
-# --- VIDEOLARNI O'CHIRISH UCHUN FUNKSIYALAR ---
-
 async def admin_del_video_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -1671,6 +1723,18 @@ if __name__ == "__main__":
     )
     application.add_handler(del_brand_handler)
 
+    broadcast_handler = ConversationHandler(
+        entry_points=[CallbackQueryHandler(broadcast_start, pattern="^broadcast_start$")],
+        states={
+            BROADCAST_TEXT: [
+                MessageHandler(filters.ALL & ~filters.COMMAND, broadcast_send),
+                CallbackQueryHandler(back_to_admin, pattern="^back_to_admin$")
+            ]
+        },
+        fallbacks=[CommandHandler("cancel", cancel), CallbackQueryHandler(back_to_admin, pattern="^back_to_admin$")]
+    )
+    application.add_handler(broadcast_handler)
+
     add_video_handler = ConversationHandler(
         entry_points=[CallbackQueryHandler(admin_add_video_menu, pattern="^admin_add_video_menu$")],
         states={
@@ -1746,7 +1810,6 @@ if __name__ == "__main__":
         CallbackQueryHandler(admin_del_cat_view, pattern="^adelcat_"),
         CallbackQueryHandler(admin_del_prod_execute, pattern="^adelprod_del_"),
         
-        # Videolarni o'chirish handlerlari
         CallbackQueryHandler(admin_del_video_menu, pattern="^admin_del_video_menu$"),
         CallbackQueryHandler(admin_del_video_cat_view, pattern="^adelvcat_"),
         CallbackQueryHandler(admin_del_video_execute, pattern="^adelv_del_"),
