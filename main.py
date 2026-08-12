@@ -129,6 +129,7 @@ def main_menu_keyboard(lang="uz"):
         keyboard = [
             [InlineKeyboardButton("📁 Каталог", callback_data="main_catalog"),
              InlineKeyboardButton("🎨 Цвета / Бренды", callback_data="main_colors")],
+            [InlineKeyboardButton("💡 Полезные видео и лайфхаки", callback_data="main_videos")],
             [InlineKeyboardButton("📞 Контакты", callback_data="main_info"),
              InlineKeyboardButton("🌐 Язык", callback_data="main_lang")],
             [InlineKeyboardButton("🔄 Обновить бот", callback_data="back_to_main")]
@@ -137,6 +138,7 @@ def main_menu_keyboard(lang="uz"):
         keyboard = [
             [InlineKeyboardButton("📁 Katalog", callback_data="main_catalog"),
              InlineKeyboardButton("🎨 Ranglar / Brendlar", callback_data="main_colors")],
+            [InlineKeyboardButton("💡 Foydali videolar va layfhaklar", callback_data="main_videos")],
             [InlineKeyboardButton("📞 Aloqa", callback_data="main_info"),
              InlineKeyboardButton("🌐 Til", callback_data="main_lang")],
             [InlineKeyboardButton("🔄 Botni yangilash", callback_data="back_to_main")]
@@ -202,6 +204,81 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await context.bot.send_photo(chat_id=chat_id, photo=logo_file_id, caption=text, reply_markup=kb)
     else:
         await context.bot.send_message(chat_id=chat_id, text=text, reply_markup=kb)
+
+# --- YAGONA VIDEOLAR BO'LIMI MENYUSI ---
+async def user_videos_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    lang = get_current_lang()
+    
+    if lang == "ru":
+        keyboard = [
+            [InlineKeyboardButton("🛠 Лайфхаки для мастеров", callback_data="sub_master_lifehacks")],
+            [InlineKeyboardButton("💡 Советы и идеи (Цвет и Дизайн)", callback_data="sub_design_ideas")],
+            [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_main")]
+        ]
+        caption_text = "💡 Полезные видео и лайфхаки\n\nВыберите нужный раздел:"
+    else:
+        keyboard = [
+            [InlineKeyboardButton("🛠 Ustalar uchun layfhaklar", callback_data="sub_master_lifehacks")],
+            [InlineKeyboardButton("💡 Maslahat va g'oyalar (Rang va Dizayn)", callback_data="sub_design_ideas")],
+            [InlineKeyboardButton("⬅️ Orqaga", callback_data="back_to_main")]
+        ]
+        caption_text = "💡 Foydali videolar va layfhaklar\n\nKerakli bo'limni tanlang:"
+        
+    try:
+        await query.message.delete()
+    except:
+        pass
+    await context.bot.send_message(chat_id=query.message.chat_id, text=caption_text, reply_markup=InlineKeyboardMarkup(keyboard))
+
+async def user_master_lifehacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    lang = get_current_lang()
+    
+    text = (
+        "🛠 **Ustalar uchun layfhaklar va ish sirlari**\n\n"
+        "Bu bo'limda ish jarayonini tezlashtiradigan, asboblardan to'g'ri foydalanish va qiyin vaziyatlarni hal qilish bo'yicha eng sara videolar joylashtirib boriladi.\n\n"
+        "_Hozircha bu bo'limda videolar qo'shilmoqda..._"
+    ) if lang != "ru" else (
+        "🛠 **Лайфхаки и секреты работы для мастеров**\n\n"
+        "В этом разделе будут размещены лучшие видеоролики по ускорению рабочего процесса, правильному использованию инструментов и решению сложных ситуаций.\n\n"
+        "_Видео в данный раздел добавляются..._"
+    )
+    
+    back_btn = "Назад" if lang == "ru" else "Orqaga"
+    keyboard = [[InlineKeyboardButton(f"⬅️ {back_btn}", callback_data="main_videos")]]
+    
+    try:
+        await query.message.delete()
+    except:
+        pass
+    await context.bot.send_message(chat_id=query.message.chat_id, text=text, parse_mode="MARKDOWN", reply_markup=InlineKeyboardMarkup(keyboard))
+
+async def user_design_ideas(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    lang = get_current_lang()
+    
+    text = (
+        "💡 **Maslahat va g'oyalar: Rang va Dizayn**\n\n"
+        "Bu yerda mebel uchun ranglarni to'g'ri tanlash, ular bir-biri bilan mos kelishi hamda xonalarga mebellarni to'g'ri joylashtirish (planirovka) bo'yicha foydali videolar joylangan.\n\n"
+        "_Hozircha bu bo'limda videolar qo'shilmoqda..._"
+    ) if lang != "ru" else (
+        "💡 **Советы и идеи: Цвет и Дизайн**\n\n"
+        "Здесь собраны полезные видеоролики по правильному подбору цветов для мебели, их сочетаемости, а также по грамотной планировке мебели в помещениях.\n\n"
+        "_Видео в данный раздел добавляются..._"
+    )
+    
+    back_btn = "Назад" if lang == "ru" else "Orqaga"
+    keyboard = [[InlineKeyboardButton(f"⬅️ {back_btn}", callback_data="main_videos")]]
+    
+    try:
+        await query.message.delete()
+    except:
+        pass
+    await context.bot.send_message(chat_id=query.message.chat_id, text=text, parse_mode="MARKDOWN", reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def user_catalog_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -1497,6 +1574,12 @@ if __name__ == "__main__":
         CallbackQueryHandler(user_colors_menu, pattern="^main_colors$"),
         CallbackQueryHandler(user_akril_submenu, pattern="^subcat_akril$"),
         CallbackQueryHandler(user_color_click, pattern="^ucol_"),
+        
+        # Yangi qo'shilgan videolar bo'limi handlerlari
+        CallbackQueryHandler(user_videos_menu, pattern="^main_videos$"),
+        CallbackQueryHandler(user_master_lifehacks, pattern="^sub_master_lifehacks$"),
+        CallbackQueryHandler(user_design_ideas, pattern="^sub_design_ideas$"),
+
         CallbackQueryHandler(main_info, pattern="^main_info$"),
         CallbackQueryHandler(main_lang, pattern="^main_lang$"),
         CallbackQueryHandler(set_lang, pattern="^set_lang_"),
