@@ -163,7 +163,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         INSERT OR IGNORE INTO users (user_id, first_name, username) 
         VALUES (?, ?, ?)
     """, (user.id, user.first_name, user.username))
-    # Agar foydalanuvchi oldin kirgan bo'lsa, username yoki ismini yangilab qo'shamiz
     cursor.execute("""
         UPDATE users SET first_name = ?, username = ? WHERE user_id = ?
     """, (user.first_name, user.username, user.id))
@@ -344,64 +343,41 @@ async def user_catalog_click(update: Update, context: ContextTypes.DEFAULT_TYPE)
         reply_markup=InlineKeyboardMarkup(keyboard_layout)
     )
 
+# --- TUZATILGAN QISM: Bazadagi barcha brendlarni dinamik chiqarish ---
 async def user_colors_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     lang = get_current_lang()
     
-    if lang == "ru":
-        keyboard = [
-            [InlineKeyboardButton("🪵 Столешница", callback_data="ucol_Stoleshnitsa_0")],
-            [InlineKeyboardButton("✨ Акрил", callback_data="subcat_akril")],
-            [InlineKeyboardButton("🚪 MDF / LDSP", callback_data="ucol_MDF_LDSP_0")],
-            [InlineKeyboardButton("⭐ Yeger Premium", callback_data="ucol_Yeger_Premium_0")],
-            [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_main")]
-        ]
-        cap = "Выберите материал или бренд:"
-    else:
-        keyboard = [
-            [InlineKeyboardButton("🪵 Stoleshnitsa", callback_data="ucol_Stoleshnitsa_0")],
-            [InlineKeyboardButton("✨ Akril", callback_data="subcat_akril")],
-            [InlineKeyboardButton("🚪 MDF / LDSP", callback_data="ucol_MDF_LDSP_0")],
-            [InlineKeyboardButton("⭐ Yeger premium", callback_data="ucol_Yeger_Premium_0")],
-            [InlineKeyboardButton("⬅️ Orqaga", callback_data="back_to_main")]
-        ]
-        cap = "Kerakli material yoki brendni tanlang:"
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, brand_name FROM brands")
+    brands = cursor.fetchall()
+    conn.close()
     
-    try:
-        await query.message.delete()
-    except:
-        pass
-    await context.bot.send_message(chat_id=query.message.chat_id, text=cap, reply_markup=InlineKeyboardMarkup(keyboard))
-
-async def user_akril_submenu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    lang = get_current_lang()
-    
-    if lang == "ru":
-        keyboard = [
-            [InlineKeyboardButton("✨ Акрил (Общий)", callback_data="ucol_Akril_Umumiy_0")],
-            [InlineKeyboardButton("🔷 Акрил: Каштан", callback_data="ucol_Akril_Kashtan_0"),
-             InlineKeyboardButton("🔶 Акрил: Кастаман", callback_data="ucol_Akril_Kastaman_0")],
-            [InlineKeyboardButton("⬅️ Назад", callback_data="main_colors")]
-        ]
-        cap = "Выберите раздел акрила:"
-    else:
-        keyboard = [
-            [InlineKeyboardButton("✨ Akril (Umumiy)", callback_data="ucol_Akril_Umumiy_0")],
-            [InlineKeyboardButton("🔷 Akril: Kashtan", callback_data="ucol_Akril_Kashtan_0"),
-             InlineKeyboardButton("🔶 Akril: Kastaman", callback_data="ucol_Akril_Kastaman_0")],
-            [InlineKeyboardButton("⬅️ Orqaga", callback_data="main_colors")]
-        ]
-        cap = "Akril bo'limini tanlang:"
+    keyboard = []
+    for b_id, b_name in brands:
+        # Callback uchun brend nomini xavfsiz formatga keltiramiz
+        safe_b_name = b_name.replace(' ', '_').replace('(', '').replace(')', '').replace('/', '').replace(':', '').replace('__', '_')
+        keyboard.append([InlineKeyboardButton(f"🎨 {b_name}", callback_data=f"ucol_{safe_b_name}_0")])
         
+    back_text_str = "Назад" if lang == "ru" else "Orqaga"
+    keyboard.append([InlineKeyboardButton(f"⬅️ {back_text_str}", callback_data="back_to_main")])
+    
+    cap = "Выберите материал или бренд:" if lang == "ru" else "Kerakli material yoki brendni tanlang:"
+    
     try:
         await query.message.delete()
     except:
         pass
     await context.bot.send_message(chat_id=query.message.chat_id, text=cap, reply_markup=InlineKeyboardMarkup(keyboard))
 
+# Eski `user_akril_submenu` endi kerak emas, chunki barcha brendlar asosiy menyuda chiqadi. 
+# Lekin xatolik chiqmasligi uchun uni oddiygina `user_colors_menu` ga yo'naltirib qo'yamiz:
+async def user_akril_submenu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await user_colors_menu(update, context)
+
+# --- TUZATILGAN QISM: Tanlangan brend rasmlarini chiqarish ---
 async def user_color_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -445,11 +421,7 @@ async def user_color_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
     colors = cursor.fetchall()
     conn.close()
     
-    if "Akril" in selected_brand:
-        back_callback = "subcat_akril"
-    else:
-        back_callback = "main_colors"
-
+    back_callback = "main_colors"
     back_text_str = "Назад" if lang == "ru" else "Orqaga"
     back_kb = InlineKeyboardMarkup([[InlineKeyboardButton(back_text_str, callback_data=back_callback)]])
     
@@ -940,7 +912,6 @@ async def admin_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
         pass
     await context.bot.send_message(chat_id=query.message.chat_id, text=text, parse_mode="HTML", reply_markup=reply_kb)
 
-# Foydalanuvchilar ro'yxatini sahifalab chiqarish funksiyasi
 async def admin_users_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -964,7 +935,7 @@ async def admin_users_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await context.bot.send_message(chat_id=query.message.chat_id, text="Hozircha botda foydalanuvchilar yo'q.", reply_markup=back_kb)
         return
         
-    limit = 10  # Bir sahifada 10 tadan foydalanuvchi ko'rsatiladi
+    limit = 10
     total_pages = (len(users) + limit - 1) // limit
     if page >= total_pages:
         page = total_pages - 1
@@ -1497,7 +1468,7 @@ if __name__ == "__main__":
         CallbackQueryHandler(admin_del_color_execute, pattern="^adelcoldel_"),
         
         CallbackQueryHandler(user_catalog_menu, pattern="^main_catalog$"),
-        CallbackQueryHandler(user_yotoqxona_submenu, pattern="^subcat_yotoqxona$"),
+        CallbackGroupHandler := CallbackQueryHandler(user_yotoqxona_submenu, pattern="^subcat_yotoqxona$"),
         CallbackQueryHandler(user_catalog_click, pattern="^ucat_"),
         CallbackQueryHandler(user_colors_menu, pattern="^main_colors$"),
         CallbackQueryHandler(user_akril_submenu, pattern="^subcat_akril$"),
