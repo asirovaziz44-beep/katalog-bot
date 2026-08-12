@@ -54,8 +54,9 @@ def get_db_connection():
 (
     ADD_CAT, ADD_PHOTO, ADD_DESC, 
     ADD_BRAND_MENU, ADD_NEW_BRAND, ADD_COLOR_PHOTO, ADD_COLOR_NAME,
-    SET_LOGO, SET_INFO, SET_WELCOME, DEL_BRAND, EDIT_COLOR_NAME
-) = range(12)
+    SET_LOGO, SET_INFO, SET_WELCOME, DEL_BRAND, EDIT_COLOR_NAME,
+    ADD_VIDEO_CAT, ADD_VIDEO_FILE, ADD_VIDEO_DESC
+) = range(15)
 
 def init_db():
     conn = get_db_connection()
@@ -97,11 +98,21 @@ def init_db():
             joined_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
+    # Videolar uchun baza jadvali
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS videos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            category TEXT,
+            file_id TEXT,
+            file_type TEXT,
+            description TEXT
+        )
+    """)
     
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_products_cat ON products(category)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_colors_brand ON colors(brand)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_videos_cat ON videos(category)")
     
-    # Akril ichki bo'limlari va boshqalar
     default_brands = ["Stoleshnitsa", "Akril: Kashtan", "Akril: Kastaman", "MDF / LDSP", "Yeger Premium"]
     for b in default_brands:
         cursor.execute("INSERT OR IGNORE INTO brands (brand_name) VALUES (?)", (b,))
@@ -205,7 +216,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await context.bot.send_message(chat_id=chat_id, text=text, reply_markup=kb)
 
-# --- YAGONA VIDEOLAR BO'LIMI MENYUSI ---
+# --- VIDEOLAR BO'LIMI (FOYDALANUCHI UCHUN) ---
 async def user_videos_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -213,15 +224,15 @@ async def user_videos_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if lang == "ru":
         keyboard = [
-            [InlineKeyboardButton("🛠 Лайфхаки для мастеров", callback_data="sub_master_lifehacks")],
-            [InlineKeyboardButton("💡 Советы и идеи (Цвет и Дизайн)", callback_data="sub_design_ideas")],
+            [InlineKeyboardButton("🛠 Лайфхаки для мастеров", callback_data="uwat_master_lifehacks_0")],
+            [InlineKeyboardButton("💡 Советы и идеи (Цвет и Дизайн)", callback_data="uwat_design_ideas_0")],
             [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_main")]
         ]
         caption_text = "💡 Полезные видео и лайфхаки\n\nВыберите нужный раздел:"
     else:
         keyboard = [
-            [InlineKeyboardButton("🛠 Ustalar uchun layfhaklar", callback_data="sub_master_lifehacks")],
-            [InlineKeyboardButton("💡 Maslahat va g'oyalar (Rang va Dizayn)", callback_data="sub_design_ideas")],
+            [InlineKeyboardButton("🛠 Ustalar uchun layfhaklar", callback_data="uwat_master_lifehacks_0")],
+            [InlineKeyboardButton("💡 Maslahat va g'oyalar (Rang va Dizayn)", callback_data="uwat_design_ideas_0")],
             [InlineKeyboardButton("⬅️ Orqaga", callback_data="back_to_main")]
         ]
         caption_text = "💡 Foydali videolar va layfhaklar\n\nKerakli bo'limni tanlang:"
@@ -232,53 +243,75 @@ async def user_videos_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         pass
     await context.bot.send_message(chat_id=query.message.chat_id, text=caption_text, reply_markup=InlineKeyboardMarkup(keyboard))
 
-async def user_master_lifehacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def user_videos_list_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
+    
+    data_parts = query.data.split("_")
+    page = int(data_parts[-1])
+    cat = "_".join(data_parts[1:-1]) # master_lifehacks yoki design_ideas
+    
     lang = get_current_lang()
+    back_text = "Назад" if lang == "ru" else "Orqaga"
     
-    text = (
-        "🛠 **Ustalar uchun layfhaklar va ish sirlari**\n\n"
-        "Bu bo'limda ish jarayonini tezlashtiradigan, asboblardan to'g'ri foydalanish va qiyin vaziyatlarni hal qilish bo'yicha eng sara videolar joylashtirib boriladi.\n\n"
-        "_Hozircha bu bo'limda videolar qo'shilmoqda..._"
-    ) if lang != "ru" else (
-        "🛠 **Лайфхаки и секреты работы для мастеров**\n\n"
-        "В этом разделе будут размещены лучшие видеоролики по ускорению рабочего процесса, правильному использованию инструментов и решению сложных ситуаций.\n\n"
-        "_Видео в данный раздел добавляются..._"
-    )
-    
-    back_btn = "Назад" if lang == "ru" else "Orqaga"
-    keyboard = [[InlineKeyboardButton(f"⬅️ {back_btn}", callback_data="main_videos")]]
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT file_id, file_type, description FROM videos WHERE category = ?", (cat,))
+    videos = cursor.fetchall()
+    conn.close()
     
     try:
         await query.message.delete()
     except:
         pass
-    await context.bot.send_message(chat_id=query.message.chat_id, text=text, parse_mode="MARKDOWN", reply_markup=InlineKeyboardMarkup(keyboard))
 
-async def user_design_ideas(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    lang = get_current_lang()
+    back_kb = InlineKeyboardMarkup([[InlineKeyboardButton(f"⬅️ {back_text}", callback_data="main_videos")]])
+
+    if not videos:
+        msg = "В этом разделе пока нет видео или материалов." if lang == "ru" else f"Hozircha bu bo'limda videolar yoki materiallar yo'q."
+        await context.bot.send_message(chat_id=query.message.chat_id, text=msg, reply_markup=back_kb)
+        return
+        
+    limit = 3 # Videolar katta bo'lgani uchun bitta sahifaga 3 tadan chiqargani maqul
+    total_pages = (len(videos) + limit - 1) // limit
     
-    text = (
-        "💡 **Maslahat va g'oyalar: Rang va Dizayn**\n\n"
-        "Bu yerda mebel uchun ranglarni to'g'ri tanlash, ular bir-biri bilan mos kelishi hamda xonalarga mebellarni to'g'ri joylashtirish (planirovka) bo'yicha foydali videolar joylangan.\n\n"
-        "_Hozircha bu bo'limda videolar qo'shilmoqda..._"
-    ) if lang != "ru" else (
-        "💡 **Советы и идеи: Цвет и Дизайн**\n\n"
-        "Здесь собраны полезные видеоролики по правильному подбору цветов для мебели, их сочетаемости, а также по грамотной планировке мебели в помещениях.\n\n"
-        "_Видео в данный раздел добавляются..._"
+    if page >= total_pages:
+        page = total_pages - 1
+    if page < 0:
+        page = 0
+        
+    start_idx = page * limit
+    end_idx = start_idx + limit
+    page_videos = videos[start_idx:end_idx]
+    
+    for v in page_videos:
+        file_id, f_type, desc = v[0], v[1], v[2]
+        caption = desc if desc else ""
+            
+        if f_type == "video":
+            await context.bot.send_video(chat_id=query.message.chat_id, video=file_id, caption=caption, parse_mode="HTML")
+        elif f_type == "photo":
+            await context.bot.send_photo(chat_id=query.message.chat_id, photo=file_id, caption=caption, parse_mode="HTML")
+        else:
+            await context.bot.send_document(chat_id=query.message.chat_id, document=file_id, caption=caption, parse_mode="HTML")
+            
+    page_buttons = []
+    for i in range(total_pages):
+        btn_text = f"• {i+1} •" if i == page else str(i+1)
+        page_buttons.append(InlineKeyboardButton(btn_text, callback_data=f"uwat_{cat}_{i}"))
+        
+    keyboard_layout = []
+    chunk_size = 5
+    for i in range(0, len(page_buttons), chunk_size):
+        keyboard_layout.append(page_buttons[i:i + chunk_size])
+        
+    keyboard_layout.append([InlineKeyboardButton(f"⬅️ {back_text}", callback_data="main_videos")])
+    
+    await context.bot.send_message(
+        chat_id=query.message.chat_id, 
+        text="Sahifani tanlang:" if lang != "ru" else "Выберите страницу:", 
+        reply_markup=InlineKeyboardMarkup(keyboard_layout)
     )
-    
-    back_btn = "Назад" if lang == "ru" else "Orqaga"
-    keyboard = [[InlineKeyboardButton(f"⬅️ {back_btn}", callback_data="main_videos")]]
-    
-    try:
-        await query.message.delete()
-    except:
-        pass
-    await context.bot.send_message(chat_id=query.message.chat_id, text=text, parse_mode="MARKDOWN", reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def user_catalog_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -421,7 +454,6 @@ async def user_catalog_click(update: Update, context: ContextTypes.DEFAULT_TYPE)
         reply_markup=InlineKeyboardMarkup(keyboard_layout)
     )
 
-# --- RANGLAR ASOSIY MENYusi (Akrilni guruhlash) ---
 async def user_colors_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -458,7 +490,6 @@ async def user_colors_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         pass
     await context.bot.send_message(chat_id=query.message.chat_id, text=cap, reply_markup=InlineKeyboardMarkup(keyboard))
 
-# --- AKRIL ICHKI MENYUSI (Kashtan va Kastaman) ---
 async def user_akril_submenu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -478,7 +509,6 @@ async def user_akril_submenu(update: Update, context: ContextTypes.DEFAULT_TYPE)
         pass
     await context.bot.send_message(chat_id=query.message.chat_id, text=cap, reply_markup=InlineKeyboardMarkup(keyboard))
 
-# --- TANLANGAN BREND RASMLARINI CHIQARISH ---
 async def user_color_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -646,8 +676,9 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("⚙️ Ma'lumotlarni sozlash", callback_data="admin_settings"),
          InlineKeyboardButton("🎨 Brendlar va Ranglar", callback_data="admin_brands_menu")],
         [InlineKeyboardButton("➕ Yangi Mahsulot Qo'shish", callback_data="admin_add_prod"),
-         InlineKeyboardButton("🗑 Rasmlarni O'chirish", callback_data="admin_del_prod_menu")],
-        [InlineKeyboardButton("📊 Statistika", callback_data="admin_stats")],
+         InlineKeyboardButton("💡 Video va Layfhak Qo'shish", callback_data="admin_add_video_menu")],
+        [InlineKeyboardButton("🗑 Rasmlarni O'chirish", callback_data="admin_del_prod_menu"),
+         InlineKeyboardButton("📊 Statistika", callback_data="admin_stats")],
         [InlineKeyboardButton("❌ Chiqish", callback_data="back_to_main")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -670,6 +701,112 @@ async def back_to_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.callback_query:
         await update.callback_query.answer()
     await admin_panel(update, context)
+
+# --- ADMIN: VIDEO QO'SHISH FUNKSIYALARI ---
+async def admin_add_video_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    keyboard = [
+        [InlineKeyboardButton("🛠 Ustalar uchun layfhaklar", callback_data="vcat_master_lifehacks")],
+        [InlineKeyboardButton("💡 Maslahat va g'oyalar (Rang/Dizayn)", callback_data="vcat_design_ideas")],
+        [InlineKeyboardButton("⬅️ Orqaga", callback_data="back_to_admin")]
+    ]
+    try:
+        await query.message.delete()
+    except:
+        pass
+    await context.bot.send_message(chat_id=query.message.chat_id, text="💡 Qaysi bo'limga video yoki rasm yuklamoqchisiz?:", reply_markup=InlineKeyboardMarkup(keyboard))
+    return ADD_VIDEO_CAT
+
+async def admin_add_video_cat_selected(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    cat = query.data.split("_", 1)[1] # master_lifehacks yoki design_ideas
+    context.user_data['video_cat'] = cat
+    
+    try:
+        await query.message.delete()
+    except:
+        pass
+        
+    reply_kb = InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Orqaga", callback_data="admin_add_video_menu")]])
+    await context.bot.send_message(
+        chat_id=query.message.chat_id, 
+        text=f"Tanlangan bo'lim: <b>{cat}</b>\n\n🎬 Endi shu bo'lim uchun **Video**, **Rasm** yoki **Fayl** yuboring:", 
+        parse_mode="HTML", 
+        reply_markup=reply_kb
+    )
+    return ADD_VIDEO_FILE
+
+async def admin_add_video_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.message.video:
+        context.user_data['video_file_id'] = update.message.video.file_id
+        context.user_data['video_file_type'] = "video"
+    elif update.message.photo:
+        context.user_data['video_file_id'] = update.message.photo[-1].file_id
+        context.user_data['video_file_type'] = "photo"
+    elif update.message.document:
+        context.user_data['video_file_id'] = update.message.document.file_id
+        context.user_data['video_file_type'] = "document"
+    else:
+        await update.message.reply_text("⚠️ Iltimos, video, rasm yoki fayl yuboring!")
+        return ADD_VIDEO_FILE
+        
+    keyboard = [
+        [InlineKeyboardButton("⏭ Matnsiz saqlash", callback_data="skip_video_desc")],
+        [InlineKeyboardButton("⬅️ Orqaga", callback_data="admin_add_video_menu")]
+    ]
+    await update.message.reply_text(
+        "📝 Video/material uchun izoh (matn) yuboring:\n(Masalan: foydali maslahat matni)",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+    return ADD_VIDEO_DESC
+
+async def admin_add_video_desc_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    desc = update.message.text
+    cat = context.user_data.get('video_cat', 'master_lifehacks')
+    file_id = context.user_data.get('video_file_id')
+    file_type = context.user_data.get('video_file_type')
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO videos (category, file_id, file_type, description) VALUES (?, ?, ?, ?)",
+                   (cat, file_id, file_type, desc))
+    conn.commit()
+    conn.close()
+    
+    keyboard = [
+        [InlineKeyboardButton("➕ Yana video qo'shish", callback_data=f"vcat_{cat}")],
+        [InlineKeyboardButton("✅ Yakunlash (Admin panel)", callback_data="back_to_admin")]
+    ]
+    await update.message.reply_text("✅ Video muvaffaqiyatli saqlandi!", reply_markup=InlineKeyboardMarkup(keyboard))
+    return ADD_VIDEO_CAT
+
+async def admin_add_video_desc_skip(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    cat = context.user_data.get('video_cat', 'master_lifehacks')
+    file_id = context.user_data.get('video_file_id')
+    file_type = context.user_data.get('video_file_type')
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO videos (category, file_id, file_type, description) VALUES (?, ?, ?, ?)",
+                   (cat, file_id, file_type, ""))
+    conn.commit()
+    conn.close()
+    
+    try:
+        await query.message.delete()
+    except:
+        pass
+        
+    keyboard = [
+        [InlineKeyboardButton("➕ Yana video qo'shish", callback_data=f"vcat_{cat}")],
+        [InlineKeyboardButton("✅ Yakunlash (Admin panel)", callback_data="back_to_admin")]
+    ]
+    await context.bot.send_message(chat_id=query.message.chat_id, text="✅ Video muvaffaqiyatli saqlandi!", reply_markup=InlineKeyboardMarkup(keyboard))
+    return ADD_VIDEO_CAT
 
 async def admin_welcome_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -992,6 +1129,8 @@ async def admin_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     b_count = cursor.fetchone()[0]
     cursor.execute("SELECT COUNT(*) FROM users")
     u_count = cursor.fetchone()[0]
+    cursor.execute("SELECT COUNT(*) FROM videos")
+    v_count = cursor.fetchone()[0]
     conn.close()
     
     text = (
@@ -999,6 +1138,7 @@ async def admin_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"👥 Jami foydalanuvchilar: <b>{u_count} ta</b>\n"
         f"📦 Jami mahsulotlar: {p_count} ta\n"
         f"🎨 Jami ranglar/materiallar: {c_count} ta\n"
+        f"💡 Jami videolar/layfhaklar: {v_count} ta\n"
         f"📂 Jami brend/bo'limlar: {b_count} ta"
     )
     
@@ -1513,6 +1653,30 @@ if __name__ == "__main__":
     )
     application.add_handler(del_brand_handler)
 
+    # --- Video qo'shish Conversation Handler ---
+    add_video_handler = ConversationHandler(
+        entry_points=[CallbackQueryHandler(admin_add_video_menu, pattern="^admin_add_video_menu$")],
+        states={
+            ADD_VIDEO_CAT: [
+                CallbackQueryHandler(admin_add_video_cat_selected, pattern="^vcat_"),
+                CallbackQueryHandler(back_to_admin, pattern="^back_to_admin$")
+            ],
+            ADD_VIDEO_FILE: [
+                MessageHandler(filters.VIDEO | filters.PHOTO | filters.DOCUMENT, admin_add_video_file),
+                CallbackQueryHandler(admin_add_video_menu, pattern="^admin_add_video_menu$"),
+                CallbackQueryHandler(back_to_admin, pattern="^back_to_admin$")
+            ],
+            ADD_VIDEO_DESC: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, admin_add_video_desc_text),
+                CallbackQueryHandler(admin_add_video_desc_skip, pattern="^skip_video_desc$"),
+                CallbackQueryHandler(admin_add_video_menu, pattern="^admin_add_video_menu$"),
+                CallbackQueryHandler(back_to_admin, pattern="^back_to_admin$")
+            ]
+        },
+        fallbacks=[CommandHandler("cancel", cancel), CallbackQueryHandler(back_to_admin, pattern="^back_to_admin$")]
+    )
+    application.add_handler(add_video_handler)
+
     add_color_handler = ConversationHandler(
         entry_points=[CallbackQueryHandler(add_color_start, pattern="^acolor_start$")],
         states={
@@ -1526,7 +1690,7 @@ if __name__ == "__main__":
             ADD_COLOR_NAME: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, add_color_name_text),
                 CallbackQueryHandler(add_color_name_skip, pattern="^skip_color_name$"),
-                CallbackQueryHandler(add_color_start, pattern="^acolor_start$")
+                CallbackGridHandler if 'CallbackGridHandler' in globals() else CallbackQueryHandler(add_color_start, pattern="^acolor_start$")
             ]
         },
         fallbacks=[CommandHandler("cancel", cancel), CallbackQueryHandler(admin_brands_menu, pattern="^admin_brands_menu$")]
@@ -1575,10 +1739,9 @@ if __name__ == "__main__":
         CallbackQueryHandler(user_akril_submenu, pattern="^subcat_akril$"),
         CallbackQueryHandler(user_color_click, pattern="^ucol_"),
         
-        # Yangi qo'shilgan videolar bo'limi handlerlari
+        # Videolar bo'limi handlerlari
         CallbackQueryHandler(user_videos_menu, pattern="^main_videos$"),
-        CallbackQueryHandler(user_master_lifehacks, pattern="^sub_master_lifehacks$"),
-        CallbackQueryHandler(user_design_ideas, pattern="^sub_design_ideas$"),
+        CallbackQueryHandler(user_videos_list_click, pattern="^uwat_"),
 
         CallbackQueryHandler(main_info, pattern="^main_info$"),
         CallbackQueryHandler(main_lang, pattern="^main_lang$"),
