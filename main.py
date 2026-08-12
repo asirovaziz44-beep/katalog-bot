@@ -48,7 +48,7 @@ DB_PATH = os.path.join(DB_DIR, "furniture_bot.db")
 
 def get_db_connection():
     conn = sqlite3.connect(DB_PATH, timeout=30.0)
-    conn.execute("PRAGMA journal_mode=WAL;") # Bazani tezlashtirish uchun WAL rejimi
+    conn.execute("PRAGMA journal_mode=WAL;")
     return conn
 
 (
@@ -89,7 +89,6 @@ def init_db():
             value TEXT
         )
     """)
-    # Foydalanuvchilar jadvali (Statistika uchun)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS users (
             user_id INTEGER PRIMARY KEY,
@@ -158,13 +157,16 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     lang = get_current_lang()
     
-    # Foydalanuvchini bazaga qo'shish (Takrorlanmagan holda saqlanadi)
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("""
         INSERT OR IGNORE INTO users (user_id, first_name, username) 
         VALUES (?, ?, ?)
     """, (user.id, user.first_name, user.username))
+    # Agar foydalanuvchi oldin kirgan bo'lsa, username yoki ismini yangilab qo'shamiz
+    cursor.execute("""
+        UPDATE users SET first_name = ?, username = ? WHERE user_id = ?
+    """, (user.first_name, user.username, user.id))
     conn.commit()
 
     cursor.execute("SELECT value FROM settings WHERE key = 'welcome_text'")
@@ -915,7 +917,6 @@ async def admin_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     c_count = cursor.fetchone()[0]
     cursor.execute("SELECT COUNT(*) FROM brands")
     b_count = cursor.fetchone()[0]
-    # Foydalanuvchilar statistikasini olish
     cursor.execute("SELECT COUNT(*) FROM users")
     u_count = cursor.fetchone()[0]
     conn.close()
@@ -927,12 +928,80 @@ async def admin_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"🎨 Jami ranglar/materiallar: {c_count} ta\n"
         f"📂 Jami brend/bo'limlar: {b_count} ta"
     )
-    reply_kb = InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Orqaga", callback_data="back_to_admin")]])
+    
+    reply_kb = InlineKeyboardMarkup([
+        [InlineKeyboardButton("📋 Foydalanuvchilar ro'yxati", callback_data="admin_users_list_0")],
+        [InlineKeyboardButton("⬅️ Orqaga", callback_data="back_to_admin")]
+    ])
+    
     try:
         await query.message.delete()
     except:
         pass
     await context.bot.send_message(chat_id=query.message.chat_id, text=text, parse_mode="HTML", reply_markup=reply_kb)
+
+# Foydalanuvchilar ro'yxatini sahifalab chiqarish funksiyasi
+async def admin_users_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    
+    page = int(query.data.split("_")[-1])
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT user_id, first_name, username, joined_date FROM users ORDER BY joined_date DESC")
+    users = cursor.fetchall()
+    conn.close()
+    
+    try:
+        await query.message.delete()
+    except:
+        pass
+        
+    back_kb = InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Orqaga (Statistika)", callback_data="admin_stats")]])
+
+    if not users:
+        await context.bot.send_message(chat_id=query.message.chat_id, text="Hozircha botda foydalanuvchilar yo'q.", reply_markup=back_kb)
+        return
+        
+    limit = 10  # Bir sahifada 10 tadan foydalanuvchi ko'rsatiladi
+    total_pages = (len(users) + limit - 1) // limit
+    if page >= total_pages:
+        page = total_pages - 1
+    if page < 0:
+        page = 0
+        
+    start_idx = page * limit
+    end_idx = start_idx + limit
+    page_users = users[start_idx:end_idx]
+    
+    text = f"📋 <b>Bot foydalanuvchilari (Jami: {len(users)} ta)</b>\n<i>Sahifa: {page+1} / {total_pages}</i>\n\n"
+    
+    for idx, u in enumerate(page_users, start=start_idx+1):
+        uid, fname, uname, j_date = u[0], u[1], u[2], u[3]
+        safe_name = fname.replace("<", "&lt;").replace(">", "&gt;") if fname else "Noma'lum"
+        username_str = f"@{uname}" if uname else "<i>username yo'q</i>"
+        text += f"{idx}. <b>{safe_name}</b> ({username_str})\n   ID: <code>{uid}</code> | 📅 {j_date}\n\n"
+        
+    page_buttons = []
+    for i in range(total_pages):
+        btn_text = f"• {i+1} •" if i == page else str(i+1)
+        page_buttons.append(InlineKeyboardButton(btn_text, callback_data=f"admin_users_list_{i}"))
+        
+    keyboard_layout = []
+    chunk_size = 5
+    for i in range(0, len(page_buttons), chunk_size):
+        keyboard_layout.append(page_buttons[i:i + chunk_size])
+        
+    keyboard_layout.append([InlineKeyboardButton("⬅️ Orqaga (Statistika)", callback_data="admin_stats")])
+    
+    await context.bot.send_message(
+        chat_id=query.message.chat_id, 
+        text=text, 
+        parse_mode="HTML", 
+        reply_markup=InlineKeyboardMarkup(keyboard_layout),
+        disable_web_page_preview=True
+    )
 
 async def admin_add_prod(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -1333,6 +1402,7 @@ if __name__ == "__main__":
     application.add_handler(CommandHandler("admin", admin_panel))
     application.add_handler(CallbackQueryHandler(back_to_admin, pattern="^back_to_admin$"))
     application.add_handler(CallbackQueryHandler(admin_stats, pattern="^admin_stats$"))
+    application.add_handler(CallbackQueryHandler(admin_users_list, pattern="^admin_users_list_"))
     application.add_handler(CallbackQueryHandler(admin_brands_menu, pattern="^admin_brands_menu$"))
     application.add_handler(CallbackQueryHandler(noop_handler, pattern="^noop$"))
 
