@@ -107,6 +107,14 @@ def init_db():
             description TEXT
         )
     """)
+    # Ommaviy xabarlar (rassilka) tarixini saqlash uchun jadval
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS broadcast_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            message_id INTEGER
+        )
+    """)
     
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_products_cat ON products(category)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_colors_brand ON colors(brand)")
@@ -690,6 +698,7 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
          InlineKeyboardButton("🎬 Videolarni O'chirish", callback_data="admin_del_video_menu")],
         [InlineKeyboardButton("📊 Statistika", callback_data="admin_stats"),
          InlineKeyboardButton("📢 Xabar yuborish", callback_data="broadcast_start")],
+        [InlineKeyboardButton("🗑 Oxirgi xabarni o'chirish", callback_data="broadcast_delete")], # Yangi tugma qo'shildi
         [InlineKeyboardButton("❌ Chiqish", callback_data="back_to_main")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -735,9 +744,12 @@ async def broadcast_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     conn = get_db_connection()
     cursor = conn.cursor()
+    # Eski yuborilgan xabarlar tarixini tozalash (xohishga ko'ra saqlash ham mumkin, hozirgi holatda yangi rassilka uchun eski tarix tozalanadi)
+    cursor.execute("DELETE FROM broadcast_history")
+    conn.commit()
+
     cursor.execute("SELECT user_id FROM users")
     users = cursor.fetchall()
-    conn.close()
     
     success_count = 0
     blocked_count = 0
@@ -748,7 +760,9 @@ async def broadcast_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for user in users:
         u_id = user[0]
         try:
-            await message_to_send.copy(chat_id=u_id)
+            sent_msg = await message_to_send.copy(chat_id=u_id)
+            # Foydalanuvchiga borgan xabarning ID sini bazaga saqlab qo'yamiz (keyin hammada o'chirish uchun)
+            cursor.execute("INSERT INTO broadcast_history (user_id, message_id) VALUES (?, ?)", (u_id, sent_msg.message_id))
             success_count += 1
         except Exception as e:
             err_str = str(e).lower()
@@ -757,16 +771,55 @@ async def broadcast_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
             else:
                 fail_count += 1
                 
+    conn.commit()
+    conn.close()
+    
     result_text = (
         f"✅ <b>Rassilka yakunlandi!</b>\n\n"
         f"📤 Muvaffaqiyatli yuborildi: <b>{success_count} ta</b>\n"
         f"🚫 Botni bloklaganlar: <b>{blocked_count} ta</b>\n"
-        f"⚠️ Xatolik yuz berdi: <b>{fail_count} ta</b>"
+        f"⚠️ Xatolik yuz berdi: <b>{fail_count} ta</b>\n\n"
+        f"<i>Agar xabarni hammadan o'chirmoqchi bo'lsangiz, Admin panelga o'tib 'Oxirgi xabarni o'chirish' tugmasini bosing.</i>"
     )
     
     lang = get_current_lang()
     await status_msg.edit_text(result_text, parse_mode="HTML", reply_markup=main_menu_keyboard(lang))
     return ConversationHandler.END
+
+# Ommaviy yuborilgan xabarlarni barcha foydalanuvchilardan o'chirib tashlash funksiyasi
+async def broadcast_delete(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT user_id, message_id FROM broadcast_history")
+    records = cursor.fetchall()
+    
+    deleted_count = 0
+    for row in records:
+        u_id, m_id = row[0], row[1]
+        try:
+            await context.bot.delete_message(chat_id=u_id, message_id=m_id)
+            deleted_count += 1
+        except Exception:
+            pass # Xabar allaqachon o'chirilgan yoki foydalanuvchi chatni tozalagan bo'lishi mumkin
+            
+    cursor.execute("DELETE FROM broadcast_history")
+    conn.commit()
+    conn.close()
+    
+    lang = get_current_lang()
+    try:
+        await query.message.delete()
+    except:
+        pass
+        
+    await context.bot.send_message(
+        chat_id=query.message.chat_id,
+        text=f"✅ Yuborilgan xabar {deleted_count} ta foydalanuvchidan muvaffaqiyatli o'chirildi!",
+        reply_markup=main_menu_keyboard(lang)
+    )
 
 async def admin_add_video_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -1687,6 +1740,9 @@ if __name__ == "__main__":
     application.add_handler(CallbackQueryHandler(admin_users_list, pattern="^admin_users_list_"))
     application.add_handler(CallbackQueryHandler(admin_brands_menu, pattern="^admin_brands_menu$"))
     application.add_handler(CallbackQueryHandler(noop_handler, pattern="^noop$"))
+    
+    # Rassilka xabarini hammadan o'chirish uchun handler
+    application.add_handler(CallbackQueryHandler(broadcast_delete, pattern="^broadcast_delete$"))
 
     logo_handler = ConversationHandler(
         entry_points=[CallbackQueryHandler(admin_logo_start, pattern="^admin_logo$")],
@@ -1711,7 +1767,7 @@ if __name__ == "__main__":
 
     add_brand_handler = ConversationHandler(
         entry_points=[CallbackQueryHandler(add_brand_start, pattern="^abrand_add$")],
-        states={ADD_NEW_BRAND: [MessageHandler(filters.TEXT & ~filters.COMMAND, add_brand_save)]},
+        states={DEL_BRAND: [CallbackQueryHandler(del_brand_execute, pattern="^delbrand_")], ADD_NEW_BRAND: [MessageHandler(filters.TEXT & ~filters.COMMAND, add_brand_save)]},
         fallbacks=[CommandHandler("cancel", cancel), CallbackQueryHandler(admin_brands_menu, pattern="^admin_brands_menu$")]
     )
     application.add_handler(add_brand_handler)
@@ -1726,7 +1782,7 @@ if __name__ == "__main__":
     broadcast_handler = ConversationHandler(
         entry_points=[CallbackQueryHandler(broadcast_start, pattern="^broadcast_start$")],
         states={
-            BROADCAST_TEXT: [
+            BROAD_TEXT if 'BROAD_TEXT' in globals() else BROADCAST_TEXT: [
                 MessageHandler(filters.ALL & ~filters.COMMAND, broadcast_send),
                 CallbackQueryHandler(back_to_admin, pattern="^back_to_admin$")
             ]
@@ -1825,7 +1881,7 @@ if __name__ == "__main__":
         CallbackQueryHandler(user_videos_list_click, pattern="^uwat_"),
 
         CallbackQueryHandler(main_info, pattern="^main_info$"),
-        CallbackQueryHandler(main_lang, pattern="^main_lang$"),
+        CallbackQueryHandler(main_lang, callback_data="main_lang" if False else main_lang),
         CallbackQueryHandler(set_lang, pattern="^set_lang_"),
         CallbackQueryHandler(back_to_main, pattern="^back_to_main$")
     ])
