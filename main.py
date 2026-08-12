@@ -698,6 +698,7 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
          InlineKeyboardButton("🎬 Videolarni O'chirish", callback_data="admin_del_video_menu")],
         [InlineKeyboardButton("📊 Statistika", callback_data="admin_stats"),
          InlineKeyboardButton("📢 Xabar yuborish", callback_data="broadcast_start")],
+        [InlineKeyboardButton("🆕 Yangilanish haqida xabar berish", callback_data="notify_update_confirm")],
         [InlineKeyboardButton("🗑 Oxirgi xabarni o'chirish", callback_data="broadcast_delete")],
         [InlineKeyboardButton("❌ Chiqish", callback_data="back_to_main")]
     ]
@@ -817,6 +818,86 @@ async def broadcast_delete(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text=f"✅ Yuborilgan xabar {deleted_count} ta foydalanuvchidan muvaffaqiyatli o'chirildi!",
         reply_markup=main_menu_keyboard(lang)
     )
+
+async def notify_update_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    text = (
+        "🆕 <b>Yangilanish haqida xabar berish</b>\n\n"
+        "Barcha obunachilarga botda yangilik (yangi bo'lim, mahsulot yoki video) "
+        "qo'shilgani haqida xabar yuboriladi. Xabarda ularga <b>🔄 Botni yangilash</b> "
+        "tugmasini bosishlari so'raladi.\n\n"
+        "Yuborishni tasdiqlaysizmi?"
+    )
+    kb = InlineKeyboardMarkup([
+        [InlineKeyboardButton("✅ Ha, yuborish", callback_data="notify_update_send")],
+        [InlineKeyboardButton("⬅️ Orqaga", callback_data="back_to_admin")]
+    ])
+    try:
+        await query.message.delete()
+    except:
+        pass
+    await context.bot.send_message(chat_id=query.message.chat_id, text=text, parse_mode="HTML", reply_markup=kb)
+
+async def notify_update_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    lang = get_current_lang()
+    if lang == "ru":
+        notify_text = (
+            "🆕 <b>Новость!</b>\n\n"
+            "В боте появились новые разделы, товары или видео!\n"
+            "Чтобы увидеть обновления, нажмите кнопку ниже 👇"
+        )
+        btn_text = "🔄 Обновить бот"
+    else:
+        notify_text = (
+            "🆕 <b>Yangilik!</b>\n\n"
+            "Botimizda yangi bo'lim, mahsulot yoki video qo'shildi!\n"
+            "Yangiliklarni ko'rish uchun quyidagi tugmani bosing 👇"
+        )
+        btn_text = "🔄 Botni yangilash"
+
+    notify_kb = InlineKeyboardMarkup([[InlineKeyboardButton(btn_text, callback_data="back_to_main")]])
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT user_id FROM users")
+    users = cursor.fetchall()
+    conn.close()
+
+    success_count = 0
+    blocked_count = 0
+    fail_count = 0
+
+    try:
+        await query.message.delete()
+    except:
+        pass
+    status_msg = await context.bot.send_message(chat_id=query.message.chat_id, text="⏳ Xabar foydalanuvchilarga yuborilmoqda, iltimos kuting...")
+
+    for user in users:
+        u_id = user[0]
+        try:
+            await context.bot.send_message(chat_id=u_id, text=notify_text, parse_mode="HTML", reply_markup=notify_kb)
+            success_count += 1
+        except Exception as e:
+            err_str = str(e).lower()
+            if "blocked" in err_str or "deactivated" in err_str or "bot was blocked" in err_str:
+                blocked_count += 1
+            else:
+                fail_count += 1
+
+    result_text = (
+        f"✅ <b>Yangilanish xabari yuborildi!</b>\n\n"
+        f"📤 Muvaffaqiyatli yuborildi: <b>{success_count} ta</b>\n"
+        f"🚫 Botni bloklaganlar: <b>{blocked_count} ta</b>\n"
+        f"⚠️ Xatolik yuz berdi: <b>{fail_count} ta</b>"
+    )
+    back_kb = InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Admin panelga qaytish", callback_data="back_to_admin")]])
+    await status_msg.edit_text(result_text, parse_mode="HTML", reply_markup=back_kb)
 
 async def admin_add_video_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -1739,6 +1820,8 @@ if __name__ == "__main__":
     application.add_handler(CallbackQueryHandler(noop_handler, pattern="^noop$"))
     
     application.add_handler(CallbackQueryHandler(broadcast_delete, pattern="^broadcast_delete$"))
+    application.add_handler(CallbackQueryHandler(notify_update_confirm, pattern="^notify_update_confirm$"))
+    application.add_handler(CallbackQueryHandler(notify_update_send, pattern="^notify_update_send$"))
 
     logo_handler = ConversationHandler(
         entry_points=[CallbackQueryHandler(admin_logo_start, pattern="^admin_logo$")],
