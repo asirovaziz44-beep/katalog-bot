@@ -676,7 +676,8 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("➕ Yangi Mahsulot Qo'shish", callback_data="admin_add_prod"),
          InlineKeyboardButton("💡 Video va Layfhak Qo'shish", callback_data="admin_add_video_menu")],
         [InlineKeyboardButton("🗑 Rasmlarni O'chirish", callback_data="admin_del_prod_menu"),
-         InlineKeyboardButton("📊 Statistika", callback_data="admin_stats")],
+         InlineKeyboardButton("🎬 Videolarni O'chirish", callback_data="admin_del_video_menu")],
+        [InlineKeyboardButton("📊 Statistika", callback_data="admin_stats")],
         [InlineKeyboardButton("❌ Chiqish", callback_data="back_to_main")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -1301,7 +1302,7 @@ async def add_prod_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def add_prod_desc_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     desc = update.message.text
     cat = context.user_data.get('prod_cat', 'Boshqa')
-    photo = context.user_data.get('prod_photo')
+    photo = context.user_data['prod_photo']
     
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -1321,7 +1322,7 @@ async def add_prod_desc_skip(update: Update, context: ContextTypes.DEFAULT_TYPE)
     query = update.callback_query
     await query.answer()
     cat = context.user_data.get('prod_cat', 'Boshqa')
-    photo = context.user_data.get('prod_photo')
+    photo = context.user_data['prod_photo']
     
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -1357,6 +1358,7 @@ async def admin_del_prod_menu(update: Update, context: ContextTypes.DEFAULT_TYPE
     query = update.callback_query
     await query.answer()
     
+    # BU YERDAN BREND VA RANGLARNI O'CHIRISH TUGMASI OLIB TASHLANDI
     keyboard = [
         [InlineKeyboardButton("🛏 Kattalar yotoqxonasi", callback_data="adelcat_Kattalar_yotoqxonasi_0"),
          InlineKeyboardButton("🧸 Bolalar yotoqxonasi", callback_data="adelcat_Bolalar_yotoqxonasi_0")],
@@ -1364,8 +1366,7 @@ async def admin_del_prod_menu(update: Update, context: ContextTypes.DEFAULT_TYPE
          InlineKeyboardButton("🍳 Oshxona", callback_data="adelcat_Oshxona_0")],
         [InlineKeyboardButton("🛋 Yumshoq mebel", callback_data="adelcat_Yumshoq_mebel_0"),
          InlineKeyboardButton("🚪 Koridor", callback_data="adelcat_Koridor_0")],
-        [InlineKeyboardButton("📺 TV zona", callback_data="adelcat_TV_zona_0")],
-        [InlineKeyboardButton("🎨 Ranglar / Brendlar bo'limidan o'chirish", callback_data="adel_colors_select_brand")]
+        [InlineKeyboardButton("📺 TV zona", callback_data="adelcat_TV_zona_0")]
     ]
     keyboard.append([InlineKeyboardButton("⬅️ Orqaga (Admin panel)", callback_data="back_to_admin")])
     
@@ -1474,45 +1475,40 @@ async def admin_del_prod_execute(update: Update, context: ContextTypes.DEFAULT_T
     query.data = f"adelcat_{cat}_{current_page}"
     await admin_del_cat_view(update, context)
 
-async def admin_del_colors_select_brand(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# --- VIDEOLARNI O'CHIRISH UCHUN FUNKSIYALAR ---
+
+async def admin_del_video_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT id, brand_name FROM brands")
-    brands = cursor.fetchall()
-    conn.close()
-    
-    back_kb = InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Orqaga", callback_data="admin_del_prod_menu")]])
+    keyboard = [
+        [InlineKeyboardButton("🛠 Ustalar uchun layfhaklar", callback_data="adelvcat_master_lifehacks_0")],
+        [InlineKeyboardButton("💡 Maslahat va g'oyalar (Rang/Dizayn)", callback_data="adelvcat_design_ideas_0")],
+        [InlineKeyboardButton("⬅️ Orqaga (Admin panel)", callback_data="back_to_admin")]
+    ]
     try:
         await query.message.delete()
     except:
         pass
+    await context.bot.send_message(
+        chat_id=query.message.chat_id, 
+        text="🎬 <b>Videolarni o'chirish</b>\nQaysi bo'limdagi videolarni o'chirmoqchisiz?", 
+        parse_mode="HTML", 
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
 
-    if not brands:
-        await context.bot.send_message(chat_id=query.message.chat_id, text="Brendlar topilmadi.", reply_markup=back_kb)
-        return
-        
-    keyboard = []
-    for b in brands:
-        keyboard.append([InlineKeyboardButton(f"🎨 {b[1]}", callback_data=f"adelcolcat_{b[1]}_0")])
-    keyboard.append([InlineKeyboardButton("⬅️ Orqaga", callback_data="admin_del_prod_menu")])
-    
-    await context.bot.send_message(chat_id=query.message.chat_id, text="Qaysi ranglar/brend bo'limini boshqarmoqchisiz?:", reply_markup=InlineKeyboardMarkup(keyboard))
-
-async def admin_del_color_cat_view(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def admin_del_video_cat_view(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     
     data_parts = query.data.split("_")
     page = int(data_parts[-1])
-    brand = "_".join(data_parts[1:-1])
+    cat = "_".join(data_parts[1:-1])
     
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT id, color_name, photo FROM colors WHERE brand = ?", (brand,))
-    colors = cursor.fetchall()
+    cursor.execute("SELECT id, file_id, file_type, description FROM videos WHERE category = ?", (cat,))
+    videos = cursor.fetchall()
     conn.close()
     
     try:
@@ -1520,69 +1516,82 @@ async def admin_del_color_cat_view(update: Update, context: ContextTypes.DEFAULT
     except:
         pass
         
-    back_kb = InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Orqaga (Brendlar)", callback_data="admin_del_colors_select_brand")]])
+    back_kb = InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Orqaga (Video bo'limlari)", callback_data="admin_del_video_menu")]])
 
-    if not colors:
-        await context.bot.send_message(chat_id=query.message.chat_id, text="Bu bo'limda ranglar mavjud emas.", reply_markup=back_kb)
+    if not videos:
+        await context.bot.send_message(chat_id=query.message.chat_id, text="Bu bo'limda o'chirish uchun videolar yo'q.", reply_markup=back_kb)
         return
         
-    total_pages = len(colors)
+    limit = 3
+    total_pages = (len(videos) + limit - 1) // limit
     if page >= total_pages:
         page = total_pages - 1
     if page < 0:
         page = 0
         
-    c_id, c_name, photo = colors[page]
+    start_idx = page * limit
+    end_idx = start_idx + limit
+    page_videos = videos[start_idx:end_idx]
     
-    caption = f"🎨 <b>Rangni Boshqarish</b>\n🆔 <b>ID: {c_id}</b> | 📂 Brend: <b>{brand}</b>\n📄 Sahifa: {page+1} / {total_pages}"
-    if c_name:
-        caption += f"\nRang nomi/kodi: <b>{c_name}</b>"
+    for v in page_videos:
+        v_id, file_id, f_type, desc = v[0], v[1], v[2], v[3]
+        caption = f"🆔 <b>ID: {v_id}</b> | 📂 Bo'lim: <b>{cat}</b>"
+        if desc:
+            caption += f"\n{desc}"
+            
+        markup = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("❌ O'chirish", callback_data=f"adelv_del_{cat}_{v_id}_{page}")
+            ]
+        ])
         
-    action_buttons = [
-        [InlineKeyboardButton("❌ O'chirish", callback_data=f"adelcoldel_{brand}_{c_id}_{page}")]
-    ]
-    
-    nav_buttons = []
-    if page > 0:
-        nav_buttons.append(InlineKeyboardButton("⬅️ Oldingi", callback_data=f"adelcolcat_{brand}_{page-1}"))
-    if page < total_pages - 1:
-        nav_buttons.append(InlineKeyboardButton("Keyingi ➡️", callback_data=f"adelcolcat_{brand}_{page+1}"))
+        if f_type == "video":
+            await context.bot.send_video(chat_id=query.message.chat_id, video=file_id, caption=caption, parse_mode="HTML", reply_markup=markup)
+        elif f_type == "photo":
+            await context.bot.send_photo(chat_id=query.message.chat_id, photo=file_id, caption=caption, parse_mode="HTML", reply_markup=markup)
+        else:
+            await context.bot.send_document(chat_id=query.message.chat_id, document=file_id, caption=caption, parse_mode="HTML", reply_markup=markup)
+            
+    page_buttons = []
+    for i in range(total_pages):
+        btn_text = f"• {i+1} •" if i == page else str(i+1)
+        page_buttons.append(InlineKeyboardButton(btn_text, callback_data=f"adelvcat_{cat}_{i}"))
         
-    if nav_buttons:
-        action_buttons.append(nav_buttons)
+    keyboard_layout = []
+    chunk_size = 5
+    for i in range(0, len(page_buttons), chunk_size):
+        keyboard_layout.append(page_buttons[i:i + chunk_size])
         
-    action_buttons.append([InlineKeyboardButton("⬅️ Orqaga (Brendlar)", callback_data="admin_del_colors_select_brand")])
+    keyboard_layout.append([InlineKeyboardButton("⬅️ Orqaga (Video bo'limlari)", callback_data="admin_del_video_menu")])
     
-    markup = InlineKeyboardMarkup(action_buttons)
-    
-    if photo:
-        await context.bot.send_photo(chat_id=query.message.chat_id, photo=photo, caption=caption, parse_mode="HTML", reply_markup=markup)
-    else:
-        await context.bot.send_message(chat_id=query.message.chat_id, text=caption, parse_mode="HTML", reply_markup=markup)
+    await context.bot.send_message(
+        chat_id=query.message.chat_id, 
+        text=f"📄 Sahifani tanlang (Jami: {len(videos)} ta video):", 
+        reply_markup=InlineKeyboardMarkup(keyboard_layout)
+    )
 
-async def admin_del_color_execute(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def admin_del_video_execute(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     
     data_parts = query.data.split("_")
-    brand = data_parts[1]
-    c_id = data_parts[2]
-    current_page = int(data_parts[3])
+    cat = data_parts[3]
+    v_id = data_parts[4]
+    current_page = int(data_parts[5])
     
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM colors WHERE id = ?", (c_id,))
+    cursor.execute("DELETE FROM videos WHERE id = ?", (v_id,))
     conn.commit()
     conn.close()
     
     try:
         await query.message.delete()
-        await query.answer("Rang o'chirildi!")
-    except:
-        await query.answer("Rang o'chirildi!")
-    
-    next_page = current_page - 1 if current_page > 0 else 0
-    query.data = f"adelcolcat_{brand}_{next_page}"
-    await admin_del_color_cat_view(update, context)
+        await query.answer("Video o'chirildi!")
+    except Exception as e:
+        await query.answer("Video o'chirildi!", show_alert=False)
+        
+    query.data = f"adelvcat_{cat}_{current_page}"
+    await admin_del_video_cat_view(update, context)
 
 async def noop_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.callback_query.answer()
@@ -1650,7 +1659,6 @@ if __name__ == "__main__":
     )
     application.add_handler(del_brand_handler)
 
-    # --- Video qo'shish Conversation Handler ---
     add_video_handler = ConversationHandler(
         entry_points=[CallbackQueryHandler(admin_add_video_menu, pattern="^admin_add_video_menu$")],
         states={
@@ -1725,9 +1733,11 @@ if __name__ == "__main__":
         CallbackQueryHandler(admin_del_prod_menu, pattern="^admin_del_prod_menu$"),
         CallbackQueryHandler(admin_del_cat_view, pattern="^adelcat_"),
         CallbackQueryHandler(admin_del_prod_execute, pattern="^adelprod_del_"),
-        CallbackQueryHandler(admin_del_colors_select_brand, pattern="^adel_colors_select_brand$"),
-        CallbackQueryHandler(admin_del_color_cat_view, pattern="^adelcolcat_"),
-        CallbackQueryHandler(admin_del_color_execute, pattern="^adelcoldel_"),
+        
+        # Videolarni o'chirish handlerlari
+        CallbackQueryHandler(admin_del_video_menu, pattern="^admin_del_video_menu$"),
+        CallbackQueryHandler(admin_del_video_cat_view, pattern="^adelvcat_"),
+        CallbackQueryHandler(admin_del_video_execute, pattern="^adelv_del_"),
         
         CallbackQueryHandler(user_catalog_menu, pattern="^main_catalog$"),
         CallbackQueryHandler(user_yotoqxona_submenu, pattern="^subcat_yotoqxona$"),
