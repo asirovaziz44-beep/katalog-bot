@@ -98,7 +98,6 @@ def init_db():
             joined_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
-    # Videolar uchun baza jadvali
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS videos (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -216,7 +215,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await context.bot.send_message(chat_id=chat_id, text=text, reply_markup=kb)
 
-# --- VIDEOLAR BO'LIMI (FOYDALANUCHI UCHUN) ---
 async def user_videos_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -702,7 +700,6 @@ async def back_to_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.callback_query.answer()
     await admin_panel(update, context)
 
-# --- ADMIN: VIDEO QO'SHISH FUNKSIYALARI ---
 async def admin_add_video_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -1662,7 +1659,7 @@ if __name__ == "__main__":
                 CallbackQueryHandler(back_to_admin, pattern="^back_to_admin$")
             ],
             ADD_VIDEO_FILE: [
-                MessageHandler(filters.VIDEO | filters.PHOTO | filters.DOCUMENT, admin_add_video_file),
+                MessageHandler(filters.VIDEO | filters.PHOTO | filters.Document.ALL, admin_add_video_file),
                 CallbackQueryHandler(admin_add_video_menu, pattern="^admin_add_video_menu$"),
                 CallbackQueryHandler(back_to_admin, pattern="^back_to_admin$")
             ],
@@ -1739,7 +1736,6 @@ if __name__ == "__main__":
         CallbackQueryHandler(user_akril_submenu, pattern="^subcat_akril$"),
         CallbackQueryHandler(user_color_click, pattern="^ucol_"),
         
-        # Videolar bo'limi handlerlari
         CallbackQueryHandler(user_videos_menu, pattern="^main_videos$"),
         CallbackQueryHandler(user_videos_list_click, pattern="^uwat_"),
 
