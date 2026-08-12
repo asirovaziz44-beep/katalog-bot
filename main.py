@@ -249,7 +249,7 @@ async def user_videos_list_click(update: Update, context: ContextTypes.DEFAULT_T
     
     data_parts = query.data.split("_")
     page = int(data_parts[-1])
-    cat = "_".join(data_parts[1:-1]) # master_lifehacks yoki design_ideas
+    cat = "_".join(data_parts[1:-1]) 
     
     lang = get_current_lang()
     back_text = "Назад" if lang == "ru" else "Orqaga"
@@ -272,7 +272,7 @@ async def user_videos_list_click(update: Update, context: ContextTypes.DEFAULT_T
         await context.bot.send_message(chat_id=query.message.chat_id, text=msg, reply_markup=back_kb)
         return
         
-    limit = 3 # Videolar katta bo'lgani uchun bitta sahifaga 3 tadan chiqargani maqul
+    limit = 3 
     total_pages = (len(videos) + limit - 1) // limit
     
     if page >= total_pages:
@@ -721,7 +721,7 @@ async def admin_add_video_menu(update: Update, context: ContextTypes.DEFAULT_TYP
 async def admin_add_video_cat_selected(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    cat = query.data.split("_", 1)[1] # master_lifehacks yoki design_ideas
+    cat = query.data.split("_", 1)[1] 
     context.user_data['video_cat'] = cat
     
     try:
@@ -1690,7 +1690,7 @@ if __name__ == "__main__":
             ADD_COLOR_NAME: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, add_color_name_text),
                 CallbackQueryHandler(add_color_name_skip, pattern="^skip_color_name$"),
-                CallbackGridHandler if 'CallbackGridHandler' in globals() else CallbackQueryHandler(add_color_start, pattern="^acolor_start$")
+                CallbackQueryHandler(add_color_start, pattern="^acolor_start$")
             ]
         },
         fallbacks=[CommandHandler("cancel", cancel), CallbackQueryHandler(admin_brands_menu, pattern="^admin_brands_menu$")]
