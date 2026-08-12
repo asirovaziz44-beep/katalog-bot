@@ -1795,7 +1795,7 @@ if __name__ == "__main__":
                 CallbackQueryHandler(back_to_admin, pattern="^back_to_admin$")
             ],
             ADD_VIDEO_FILE: [
-                # TO'G'RILANDI: filters.Document.ALL o'rniga kichik harflardagi filters.document.ALL yozildi
+                # TO'G'RILANDI: filters.DOCUMENT o'rniga filters.document.ALL yozildi
                 MessageHandler(filters.VIDEO | filters.PHOTO | filters.document.ALL, admin_add_video_file),
                 CallbackQueryHandler(admin_add_video_menu, pattern="^admin_add_video_menu$"),
                 CallbackQueryHandler(back_to_admin, pattern="^back_to_admin$")
