@@ -47,7 +47,9 @@ if not os.path.exists(DB_DIR):
 DB_PATH = os.path.join(DB_DIR, "furniture_bot.db")
 
 def get_db_connection():
-    return sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=30.0)
+    conn.execute("PRAGMA journal_mode=WAL;") # Bazani tezlashtirish uchun WAL rejimi
+    return conn
 
 (
     ADD_CAT, ADD_PHOTO, ADD_DESC, 
@@ -85,6 +87,15 @@ def init_db():
         CREATE TABLE IF NOT EXISTS settings (
             key TEXT PRIMARY KEY,
             value TEXT
+        )
+    """)
+    # Foydalanuvchilar jadvali (Statistika uchun)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            user_id INTEGER PRIMARY KEY,
+            first_name TEXT,
+            username TEXT,
+            joined_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
     
@@ -133,21 +144,35 @@ def main_menu_keyboard(lang="uz"):
     return InlineKeyboardMarkup(keyboard)
 
 def get_current_lang():
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT value FROM settings WHERE key = 'language'")
-    res = cursor.fetchone()
-    conn.close()
-    return res[0] if res else "uz"
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT value FROM settings WHERE key = 'language'")
+        res = cursor.fetchone()
+        conn.close()
+        return res[0] if res else "uz"
+    except:
+        return "uz"
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     lang = get_current_lang()
     
+    # Foydalanuvchini bazaga qo'shish (Takrorlanmagan holda saqlanadi)
     conn = get_db_connection()
     cursor = conn.cursor()
+    cursor.execute("""
+        INSERT OR IGNORE INTO users (user_id, first_name, username) 
+        VALUES (?, ?, ?)
+    """, (user.id, user.first_name, user.username))
+    conn.commit()
+
     cursor.execute("SELECT value FROM settings WHERE key = 'welcome_text'")
     res_text = cursor.fetchone()
+    
+    cursor.execute("SELECT value FROM settings WHERE key = 'logo'")
+    res_logo = cursor.fetchone()
+    conn.close()
     
     if lang == "ru":
         default_t = "Здравствуйте, {user_name}!\nДобро пожаловать в каталог современной мебели."
@@ -156,11 +181,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
     template = res_text[0] if res_text else default_t
     text = template.replace("{user_name}", user.first_name)
-    
-    cursor.execute("SELECT value FROM settings WHERE key = 'logo'")
-    res_logo = cursor.fetchone()
     logo_file_id = res_logo[0] if res_logo else None
-    conn.close()
 
     kb = main_menu_keyboard(lang)
     
@@ -180,7 +201,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await context.bot.send_message(chat_id=chat_id, text=text, reply_markup=kb)
 
-# --- USER: KATALOG ---
 async def user_catalog_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -322,7 +342,6 @@ async def user_catalog_click(update: Update, context: ContextTypes.DEFAULT_TYPE)
         reply_markup=InlineKeyboardMarkup(keyboard_layout)
     )
 
-# --- USER: RANGLAR / BRENDLAR ---
 async def user_colors_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -474,7 +493,6 @@ async def user_color_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await context.bot.send_message(chat_id=query.message.chat_id, text="Sahifani tanlang:" if lang != "ru" else "Выберите страницу:", reply_markup=InlineKeyboardMarkup(keyboard_layout))
 
-# --- ALOQA VA TIL ---
 async def main_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -546,7 +564,6 @@ async def back_to_main(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.callback_query.answer()
     await start(update, context)
 
-# --- ADMIN PANEL ---
 async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         [InlineKeyboardButton("🖼 Logotipni o'zgartirish", callback_data="admin_logo"),
@@ -898,9 +915,18 @@ async def admin_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     c_count = cursor.fetchone()[0]
     cursor.execute("SELECT COUNT(*) FROM brands")
     b_count = cursor.fetchone()[0]
+    # Foydalanuvchilar statistikasini olish
+    cursor.execute("SELECT COUNT(*) FROM users")
+    u_count = cursor.fetchone()[0]
     conn.close()
     
-    text = f"📊 <b>Statistika</b>\n\n- Jami mahsulotlar: {p_count} ta\n- Jami ranglar/materiallar: {c_count} ta\n- Jami brend/bo'limlar: {b_count} ta"
+    text = (
+        f"📊 <b>Statistika</b>\n\n"
+        f"👥 Jami foydalanuvchilar: <b>{u_count} ta</b>\n"
+        f"📦 Jami mahsulotlar: {p_count} ta\n"
+        f"🎨 Jami ranglar/materiallar: {c_count} ta\n"
+        f"📂 Jami brend/bo'limlar: {b_count} ta"
+    )
     reply_kb = InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Orqaga", callback_data="back_to_admin")]])
     try:
         await query.message.delete()
@@ -908,7 +934,6 @@ async def admin_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
         pass
     await context.bot.send_message(chat_id=query.message.chat_id, text=text, parse_mode="HTML", reply_markup=reply_kb)
 
-# --- ADD PRODUCT CONVERSATION ---
 async def admin_add_prod(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -1050,19 +1075,10 @@ async def finish_adding_products(update: Update, context: ContextTypes.DEFAULT_T
     await context.bot.send_message(chat_id=query.message.chat_id, text="✅ Barcha mahsulotlar yuklandi!", reply_markup=main_menu_keyboard(lang))
     return ConversationHandler.END
 
-# --- RASMLARni O'CHIRISH (KATEGORIYA TANLASH BILAN) ---
 async def admin_del_prod_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT brand_name FROM brands")
-    brand_rows = cursor.fetchall()
-    conn.close()
-    
-    brands_list = [r[0] for r in brand_rows]
-
     keyboard = [
         [InlineKeyboardButton("🛏 Kattalar yotoqxonasi", callback_data="adelcat_Kattalar_yotoqxonasi_0"),
          InlineKeyboardButton("🧸 Bolalar yotoqxonasi", callback_data="adelcat_Bolalar_yotoqxonasi_0")],
@@ -1180,7 +1196,6 @@ async def admin_del_prod_execute(update: Update, context: ContextTypes.DEFAULT_T
     query.data = f"adelcat_{cat}_{current_page}"
     await admin_del_cat_view(update, context)
 
-# --- RANGLARNI BO'LIMLAR BO'YICHA O'CHIRISH ---
 async def admin_del_colors_select_brand(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -1227,7 +1242,7 @@ async def admin_del_color_cat_view(update: Update, context: ContextTypes.DEFAULT
     except:
         pass
         
-    back_kb = InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Orqaga (Brendlar)", callback_data="adel_colors_select_brand")]])
+    back_kb = InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Orqaga (Brendlar)", callback_data="admin_del_colors_select_brand")]])
 
     if not colors:
         await context.bot.send_message(chat_id=query.message.chat_id, text="Bu bo'limda ranglar mavjud emas.", reply_markup=back_kb)
@@ -1258,7 +1273,7 @@ async def admin_del_color_cat_view(update: Update, context: ContextTypes.DEFAULT
     if nav_buttons:
         action_buttons.append(nav_buttons)
         
-    action_buttons.append([InlineKeyboardButton("⬅️ Orqaga (Brendlar)", callback_data="adel_colors_select_brand")])
+    action_buttons.append([InlineKeyboardButton("⬅️ Orqaga (Brendlar)", callback_data="admin_del_colors_select_brand")])
     
     markup = InlineKeyboardMarkup(action_buttons)
     
