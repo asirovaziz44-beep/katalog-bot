@@ -35,7 +35,12 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-TOKEN = "8722268472:AAEgcBPD0m1jWjP_5WjXN9z080U9v2BT20c"
+TOKEN = os.environ.get("BOT_TOKEN")
+if not TOKEN:
+    raise RuntimeError(
+        "BOT_TOKEN muhit o'zgaruvchisi topilmadi! "
+        "Render'da Environment tab'iga o'tib, Key='BOT_TOKEN', Value=<bot tokeningiz> qo'shing."
+    )
 MANAGER_USERNAME = "azizbek_mebel"
 
 # --- ADMIN HIMOYASI: faqat shu ID(lar)dagi foydalanuvchilar admin panelga kira oladi ---
