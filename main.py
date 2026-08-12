@@ -38,6 +38,30 @@ logger = logging.getLogger(__name__)
 TOKEN = "8722268472:AAEgcBPD0m1jWjP_5WjXN9z080U9v2BT20c"
 MANAGER_USERNAME = "azizbek_mebel"
 
+# --- ADMIN HIMOYASI: faqat shu ID(lar)dagi foydalanuvchilar admin panelga kira oladi ---
+ADMIN_IDS = {760912345}
+
+def is_admin(user_id: int) -> bool:
+    return user_id in ADMIN_IDS
+
+from functools import wraps
+
+def admin_only(func):
+    """Faqat ADMIN_IDS ichidagi foydalanuvchilarga ruxsat beradigan dekorator."""
+    @wraps(func)
+    async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE, *args, **kwargs):
+        user_id = update.effective_user.id
+        if not is_admin(user_id):
+            lang = get_current_lang()
+            deny_text = "⛔ Sizda bu amalni bajarish huquqi yo'q." if lang != "ru" else "⛔ У вас нет прав для этого действия."
+            if update.callback_query:
+                await update.callback_query.answer(deny_text, show_alert=True)
+            else:
+                await update.message.reply_text(deny_text)
+            return None
+        return await func(update, context, *args, **kwargs)
+    return wrapper
+
 # --- RENDER DATA DISK YO'LI ---
 DB_DIR = "/data"
 if not os.path.exists(DB_DIR):
@@ -697,6 +721,17 @@ async def back_to_main(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await start(update, context)
 
 async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+
+    if not is_admin(user_id):
+        lang = get_current_lang()
+        deny_text = "⛔ Sizda admin panelga kirish huquqi yo'q." if lang != "ru" else "⛔ У вас нет доступа к панели администратора."
+        if update.callback_query:
+            await update.callback_query.answer(deny_text, show_alert=True)
+        else:
+            await update.message.reply_text(deny_text)
+        return
+
     keyboard = [
         [InlineKeyboardButton("🖼 Logotipni o'zgartirish", callback_data="admin_logo"),
          InlineKeyboardButton("💬 Salomlashish matni", callback_data="admin_welcome")],
@@ -733,6 +768,7 @@ async def back_to_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.callback_query.answer()
     await admin_panel(update, context)
 
+@admin_only
 async def broadcast_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -806,6 +842,7 @@ async def broadcast_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await status_msg.edit_text(result_text, parse_mode="HTML", reply_markup=main_menu_keyboard(lang))
     return ConversationHandler.END
 
+@admin_only
 async def broadcast_delete(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -840,6 +877,7 @@ async def broadcast_delete(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=main_menu_keyboard(lang)
     )
 
+@admin_only
 async def notify_update_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -861,6 +899,7 @@ async def notify_update_confirm(update: Update, context: ContextTypes.DEFAULT_TY
         pass
     await context.bot.send_message(chat_id=query.message.chat_id, text=text, parse_mode="HTML", reply_markup=kb)
 
+@admin_only
 async def notify_update_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -928,6 +967,7 @@ async def notify_update_send(update: Update, context: ContextTypes.DEFAULT_TYPE)
     back_kb = InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Admin panelga qaytish", callback_data="back_to_admin")]])
     await status_msg.edit_text(result_text, parse_mode="HTML", reply_markup=back_kb)
 
+@admin_only
 async def admin_add_video_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -1033,6 +1073,7 @@ async def admin_add_video_desc_skip(update: Update, context: ContextTypes.DEFAUL
     await context.bot.send_message(chat_id=query.message.chat_id, text="✅ Video muvaffaqiyatli saqlandi!", reply_markup=InlineKeyboardMarkup(keyboard))
     return ADD_VIDEO_CAT
 
+@admin_only
 async def admin_welcome_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -1069,6 +1110,7 @@ async def admin_welcome_save(update: Update, context: ContextTypes.DEFAULT_TYPE)
     await update.message.reply_text("✅ Salomlashish matni muvaffaqiyatli yangilandi!", reply_markup=main_menu_keyboard(lang))
     return ConversationHandler.END
 
+@admin_only
 async def admin_brands_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -1084,6 +1126,7 @@ async def admin_brands_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         pass
     await context.bot.send_message(chat_id=query.message.chat_id, text="🎨 <b>Brendlar va ranglarni boshqarish bo'limi:</b>", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="HTML")
 
+@admin_only
 async def add_brand_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -1111,6 +1154,7 @@ async def add_brand_save(update: Update, context: ContextTypes.DEFAULT_TYPE):
     conn.close()
     return ConversationHandler.END
 
+@admin_only
 async def del_brand_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -1157,6 +1201,7 @@ async def del_brand_execute(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_message(chat_id=query.message.chat_id, text="✅ Brend muvaffaqiyatli o'chirildi!", reply_markup=main_menu_keyboard(lang))
     return ConversationHandler.END
 
+@admin_only
 async def add_color_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -1295,6 +1340,7 @@ async def finish_adding_colors(update: Update, context: ContextTypes.DEFAULT_TYP
     await context.bot.send_message(chat_id=query.message.chat_id, text="✅ Barcha rasmlar yuklandi!", reply_markup=main_menu_keyboard(lang))
     return ConversationHandler.END
 
+@admin_only
 async def admin_logo_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -1318,6 +1364,7 @@ async def admin_logo_save(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("✅ Logotip muvaffaqiyatli yangilandi!", reply_markup=main_menu_keyboard(lang))
     return ConversationHandler.END
 
+@admin_only
 async def admin_settings_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -1341,6 +1388,7 @@ async def admin_settings_save(update: Update, context: ContextTypes.DEFAULT_TYPE
     await update.message.reply_text("✅ Aloqa ma'lumotlari muvaffaqiyatli yangilandi!", reply_markup=main_menu_keyboard(lang))
     return ConversationHandler.END
 
+@admin_only
 async def admin_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -1378,6 +1426,7 @@ async def admin_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
         pass
     await context.bot.send_message(chat_id=query.message.chat_id, text=text, parse_mode="HTML", reply_markup=reply_kb)
 
+@admin_only
 async def admin_users_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -1440,6 +1489,7 @@ async def admin_users_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
         disable_web_page_preview=True
     )
 
+@admin_only
 async def admin_add_prod(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -1581,6 +1631,7 @@ async def finish_adding_products(update: Update, context: ContextTypes.DEFAULT_T
     await context.bot.send_message(chat_id=query.message.chat_id, text="✅ Barcha mahsulotlar yuklandi!", reply_markup=main_menu_keyboard(lang))
     return ConversationHandler.END
 
+@admin_only
 async def admin_del_prod_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -1607,6 +1658,7 @@ async def admin_del_prod_menu(update: Update, context: ContextTypes.DEFAULT_TYPE
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
+@admin_only
 async def admin_del_cat_view(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -1678,6 +1730,7 @@ async def admin_del_cat_view(update: Update, context: ContextTypes.DEFAULT_TYPE)
         reply_markup=InlineKeyboardMarkup(keyboard_layout)
     )
 
+@admin_only
 async def admin_del_prod_execute(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     
@@ -1701,6 +1754,7 @@ async def admin_del_prod_execute(update: Update, context: ContextTypes.DEFAULT_T
     query.data = f"adelcat_{cat}_{current_page}"
     await admin_del_cat_view(update, context)
 
+@admin_only
 async def admin_del_video_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -1721,6 +1775,7 @@ async def admin_del_video_menu(update: Update, context: ContextTypes.DEFAULT_TYP
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
+@admin_only
 async def admin_del_video_cat_view(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -1794,6 +1849,7 @@ async def admin_del_video_cat_view(update: Update, context: ContextTypes.DEFAULT
         reply_markup=InlineKeyboardMarkup(keyboard_layout)
     )
 
+@admin_only
 async def admin_del_video_execute(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     
