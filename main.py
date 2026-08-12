@@ -698,7 +698,7 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
          InlineKeyboardButton("🎬 Videolarni O'chirish", callback_data="admin_del_video_menu")],
         [InlineKeyboardButton("📊 Statistika", callback_data="admin_stats"),
          InlineKeyboardButton("📢 Xabar yuborish", callback_data="broadcast_start")],
-        [InlineKeyboardButton("🗑 Oxirgi xabarni o'chirish", callback_data="broadcast_delete")], # Yangi tugma qo'shildi
+        [InlineKeyboardButton("🗑 Oxirgi xabarni o'chirish", callback_data="broadcast_delete")],
         [InlineKeyboardButton("❌ Chiqish", callback_data="back_to_main")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -744,7 +744,6 @@ async def broadcast_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     conn = get_db_connection()
     cursor = conn.cursor()
-    # Eski yuborilgan xabarlar tarixini tozalash (xohishga ko'ra saqlash ham mumkin, hozirgi holatda yangi rassilka uchun eski tarix tozalanadi)
     cursor.execute("DELETE FROM broadcast_history")
     conn.commit()
 
@@ -761,7 +760,6 @@ async def broadcast_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
         u_id = user[0]
         try:
             sent_msg = await message_to_send.copy(chat_id=u_id)
-            # Foydalanuvchiga borgan xabarning ID sini bazaga saqlab qo'yamiz (keyin hammada o'chirish uchun)
             cursor.execute("INSERT INTO broadcast_history (user_id, message_id) VALUES (?, ?)", (u_id, sent_msg.message_id))
             success_count += 1
         except Exception as e:
@@ -786,7 +784,6 @@ async def broadcast_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await status_msg.edit_text(result_text, parse_mode="HTML", reply_markup=main_menu_keyboard(lang))
     return ConversationHandler.END
 
-# Ommaviy yuborilgan xabarlarni barcha foydalanuvchilardan o'chirib tashlash funksiyasi
 async def broadcast_delete(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -803,7 +800,7 @@ async def broadcast_delete(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await context.bot.delete_message(chat_id=u_id, message_id=m_id)
             deleted_count += 1
         except Exception:
-            pass # Xabar allaqachon o'chirilgan yoki foydalanuvchi chatni tozalagan bo'lishi mumkin
+            pass 
             
     cursor.execute("DELETE FROM broadcast_history")
     conn.commit()
@@ -1741,7 +1738,6 @@ if __name__ == "__main__":
     application.add_handler(CallbackQueryHandler(admin_brands_menu, pattern="^admin_brands_menu$"))
     application.add_handler(CallbackQueryHandler(noop_handler, pattern="^noop$"))
     
-    # Rassilka xabarini hammadan o'chirish uchun handler
     application.add_handler(CallbackQueryHandler(broadcast_delete, pattern="^broadcast_delete$"))
 
     logo_handler = ConversationHandler(
@@ -1782,7 +1778,7 @@ if __name__ == "__main__":
     broadcast_handler = ConversationHandler(
         entry_points=[CallbackQueryHandler(broadcast_start, pattern="^broadcast_start$")],
         states={
-            BROAD_TEXT if 'BROAD_TEXT' in globals() else BROADCAST_TEXT: [
+            BROADCAST_TEXT: [
                 MessageHandler(filters.ALL & ~filters.COMMAND, broadcast_send),
                 CallbackQueryHandler(back_to_admin, pattern="^back_to_admin$")
             ]
@@ -1799,7 +1795,8 @@ if __name__ == "__main__":
                 CallbackQueryHandler(back_to_admin, pattern="^back_to_admin$")
             ],
             ADD_VIDEO_FILE: [
-                MessageHandler(filters.VIDEO | filters.PHOTO | filters.Document.ALL, admin_add_video_file),
+                # TO'G'RILANDI: filters.Document.ALL o'rniga kichik harflardagi filters.document.ALL yozildi
+                MessageHandler(filters.VIDEO | filters.PHOTO | filters.document.ALL, admin_add_video_file),
                 CallbackQueryHandler(admin_add_video_menu, pattern="^admin_add_video_menu$"),
                 CallbackQueryHandler(back_to_admin, pattern="^back_to_admin$")
             ],
