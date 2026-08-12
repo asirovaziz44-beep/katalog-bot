@@ -101,7 +101,8 @@ def init_db():
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_products_cat ON products(category)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_colors_brand ON colors(brand)")
     
-    default_brands = ["Stoleshnitsa", "Akril (Umumiy)", "Akril: Kashtan", "Akril: Kastaman", "MDF / LDSP", "Yeger Premium"]
+    # Akril ichki bo'limlari va boshqalar
+    default_brands = ["Stoleshnitsa", "Akril: Kashtan", "Akril: Kastaman", "MDF / LDSP", "Yeger Premium"]
     for b in default_brands:
         cursor.execute("INSERT OR IGNORE INTO brands (brand_name) VALUES (?)", (b,))
         
@@ -343,7 +344,7 @@ async def user_catalog_click(update: Update, context: ContextTypes.DEFAULT_TYPE)
         reply_markup=InlineKeyboardMarkup(keyboard_layout)
     )
 
-# --- TUZATILGAN QISM: Bazadagi barcha brendlarni dinamik chiqarish ---
+# --- RANGLAR ASOSIY MENYusi (Akrilni guruhlash) ---
 async def user_colors_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -356,10 +357,18 @@ async def user_colors_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     conn.close()
     
     keyboard = []
+    has_akril = False
+    
     for b_id, b_name in brands:
-        # Callback uchun brend nomini xavfsiz formatga keltiramiz
+        if b_name.startswith("Akril:"):
+            has_akril = True
+            continue
+            
         safe_b_name = b_name.replace(' ', '_').replace('(', '').replace(')', '').replace('/', '').replace(':', '').replace('__', '_')
         keyboard.append([InlineKeyboardButton(f"🎨 {b_name}", callback_data=f"ucol_{safe_b_name}_0")])
+        
+    if has_akril:
+        keyboard.insert(0, [InlineKeyboardButton("🎨 Akril", callback_data="subcat_akril")])
         
     back_text_str = "Назад" if lang == "ru" else "Orqaga"
     keyboard.append([InlineKeyboardButton(f"⬅️ {back_text_str}", callback_data="back_to_main")])
@@ -372,12 +381,27 @@ async def user_colors_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         pass
     await context.bot.send_message(chat_id=query.message.chat_id, text=cap, reply_markup=InlineKeyboardMarkup(keyboard))
 
-# Eski `user_akril_submenu` endi kerak emas, chunki barcha brendlar asosiy menyuda chiqadi. 
-# Lekin xatolik chiqmasligi uchun uni oddiygina `user_colors_menu` ga yo'naltirib qo'yamiz:
+# --- AKRIL ICHKI MENYUSI (Kashtan va Kastaman) ---
 async def user_akril_submenu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await user_colors_menu(update, context)
+    query = update.callback_query
+    await query.answer()
+    lang = get_current_lang()
+    
+    keyboard = [
+        [InlineKeyboardButton("🎨 Kashtan", callback_data="ucol_Akril_Kashtan_0")],
+        [InlineKeyboardButton("🎨 Kastaman", callback_data="ucol_Akril_Kastaman_0")],
+        [InlineKeyboardButton("⬅️ Orqaga", callback_data="main_colors")]
+    ]
+    
+    cap = "Akril bo'limidan kerakli turini tanlang:" if lang != "ru" else "Выберите подраздел акрила:"
+    
+    try:
+        await query.message.delete()
+    except:
+        pass
+    await context.bot.send_message(chat_id=query.message.chat_id, text=cap, reply_markup=InlineKeyboardMarkup(keyboard))
 
-# --- TUZATILGAN QISM: Tanlangan brend rasmlarini chiqarish ---
+# --- TANLANGAN BREND RASMLARINI CHIQARISH ---
 async def user_color_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -421,7 +445,7 @@ async def user_color_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
     colors = cursor.fetchall()
     conn.close()
     
-    back_callback = "main_colors"
+    back_callback = "subcat_akril" if "Akril" in selected_brand else "main_colors"
     back_text_str = "Назад" if lang == "ru" else "Orqaga"
     back_kb = InlineKeyboardMarkup([[InlineKeyboardButton(back_text_str, callback_data=back_callback)]])
     
@@ -625,7 +649,7 @@ async def add_brand_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     reply_kb = InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Orqaga", callback_data="admin_brands_menu")]])
-    text = "➕ Yangi brend yoki bo'lim nomini yuboring\n(masalan: <i>Akril: Yeni</i> yoki <i>MDF Matte</i>):"
+    text = "➕ Yangi brend yoki bo'lim nomini yuboring\n(masalan: <i>Akril: Kashtan</i> yoki <i>MDF Matte</i>):"
     try:
         await query.message.delete()
     except:
@@ -1468,7 +1492,7 @@ if __name__ == "__main__":
         CallbackQueryHandler(admin_del_color_execute, pattern="^adelcoldel_"),
         
         CallbackQueryHandler(user_catalog_menu, pattern="^main_catalog$"),
-        CallbackGroupHandler := CallbackQueryHandler(user_yotoqxona_submenu, pattern="^subcat_yotoqxona$"),
+        CallbackQueryHandler(user_yotoqxona_submenu, pattern="^subcat_yotoqxona$"),
         CallbackQueryHandler(user_catalog_click, pattern="^ucat_"),
         CallbackQueryHandler(user_colors_menu, pattern="^main_colors$"),
         CallbackQueryHandler(user_akril_submenu, pattern="^subcat_akril$"),
