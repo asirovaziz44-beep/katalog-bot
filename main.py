@@ -220,26 +220,30 @@ async def user_videos_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     lang = get_current_lang()
     
+    # Mualliflik huquqi eslatmasi qo'shildi
+    copyright_notice = "⚖️ **Mualliflik huquqi bo'yicha eslatma:**\nBotimizdagi videoroliklar internet tarmoqlaridan olingan bo'lib, ular tijorat maqsadida ishlatilmaydi. Barcha huquqlar o'z mualliflariga tegishli\n\n"
+    
     if lang == "ru":
+        copyright_notice = "⚖️ **Уведомление об авторских правах:**\nВидеоролики в нашем боте взяты из интернет-сети и не используются в коммерческих целях. Все права принадлежат их авторам\n\n"
         keyboard = [
             [InlineKeyboardButton("🛠 Лайфхаки для мастеров", callback_data="uwat_master_lifehacks_0")],
             [InlineKeyboardButton("💡 Советы и идеи (Цвет и Дизайн)", callback_data="uwat_design_ideas_0")],
             [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_main")]
         ]
-        caption_text = "💡 Полезные видео и лайфхаки\n\nВыберите нужный раздел:"
+        caption_text = copyright_notice + "💡 Полезные видео и лайфхаки\n\nВыберите нужный раздел:"
     else:
         keyboard = [
             [InlineKeyboardButton("🛠 Ustalar uchun layfhaklar", callback_data="uwat_master_lifehacks_0")],
             [InlineKeyboardButton("💡 Maslahat va g'oyalar (Rang va Dizayn)", callback_data="uwat_design_ideas_0")],
             [InlineKeyboardButton("⬅️ Orqaga", callback_data="back_to_main")]
         ]
-        caption_text = "💡 Foydali videolar va layfhaklar\n\nKerakli bo'limni tanlang:"
+        caption_text = copyright_notice + "💡 Foydali videolar va layfhaklar\n\nKerakli bo'limni tanlang:"
         
     try:
         await query.message.delete()
     except:
         pass
-    await context.bot.send_message(chat_id=query.message.chat_id, text=caption_text, reply_markup=InlineKeyboardMarkup(keyboard))
+    await context.bot.send_message(chat_id=query.message.chat_id, text=caption_text, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def user_videos_list_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -305,9 +309,18 @@ async def user_videos_list_click(update: Update, context: ContextTypes.DEFAULT_T
         
     keyboard_layout.append([InlineKeyboardButton(f"⬅️ {back_text}", callback_data="main_videos")])
     
+    # Ichki bo'lim (sahifa) ochilganda chiqadigan mualliflik huquqi eslatmasi
+    copyright_notice = "⚖️ **Mualliflik huquqi bo'yicha eslatma:**\nBotimizdagi videoroliklar internet tarmoqlaridan olingan bo'lib, ular tijorat maqsadida ishlatilmaydi. Barcha huquqlar o'z mualliflariga tegishli\n\n"
+    if lang == "ru":
+        copyright_notice = "⚖️ **Уведомление об авторских правах:**\nВидеоролики в нашем боте взяты из интернет-сети и не используются в коммерческих целях. Все права принадлежат их авторам\n\n"
+
+    page_text_label = "Sahifani tanlang:" if lang != "ru" else "Выберите страницу:"
+    final_message_text = copyright_notice + page_text_label
+
     await context.bot.send_message(
         chat_id=query.message.chat_id, 
-        text="Sahifani tanlang:" if lang != "ru" else "Выберите страницу:", 
+        text=final_message_text, 
+        parse_mode="Markdown",
         reply_markup=InlineKeyboardMarkup(keyboard_layout)
     )
 
@@ -1358,7 +1371,6 @@ async def admin_del_prod_menu(update: Update, context: ContextTypes.DEFAULT_TYPE
     query = update.callback_query
     await query.answer()
     
-    # BU YERDAN BREND VA RANGLARNI O'CHIRISH TUGMASI OLIB TASHLANDI
     keyboard = [
         [InlineKeyboardButton("🛏 Kattalar yotoqxonasi", callback_data="adelcat_Kattalar_yotoqxonasi_0"),
          InlineKeyboardButton("🧸 Bolalar yotoqxonasi", callback_data="adelcat_Bolalar_yotoqxonasi_0")],
