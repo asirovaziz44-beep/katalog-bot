@@ -17,7 +17,9 @@ def keep_alive():
 
 import logging
 import sqlite3
+import asyncio
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.error import RetryAfter, TimedOut, BadRequest
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -50,6 +52,9 @@ def get_db_connection():
     conn = sqlite3.connect(DB_PATH, timeout=30.0)
     conn.execute("PRAGMA journal_mode=WAL;")
     return conn
+
+# --- TILNI XOTIRADA KESHLASH (har safar DB'ga bormaslik uchun) ---
+_LANG_CACHE = {"value": None}
 
 (
     ADD_CAT, ADD_PHOTO, ADD_DESC, 
@@ -164,13 +169,17 @@ def main_menu_keyboard(lang="uz"):
     return InlineKeyboardMarkup(keyboard)
 
 def get_current_lang():
+    if _LANG_CACHE["value"] is not None:
+        return _LANG_CACHE["value"]
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute("SELECT value FROM settings WHERE key = 'language'")
         res = cursor.fetchone()
         conn.close()
-        return res[0] if res else "uz"
+        lang = res[0] if res else "uz"
+        _LANG_CACHE["value"] = lang
+        return lang
     except:
         return "uz"
 
@@ -669,6 +678,7 @@ async def set_lang(update: Update, context: ContextTypes.DEFAULT_TYPE):
     cursor.execute("REPLACE INTO settings (key, value) VALUES ('language', ?)", (lang_code,))
     conn.commit()
     conn.close()
+    _LANG_CACHE["value"] = lang_code
     
     if lang_code == "ru":
         text = "✅ Язык успешно изменен на русский!"
@@ -763,12 +773,23 @@ async def broadcast_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
             sent_msg = await message_to_send.copy(chat_id=u_id)
             cursor.execute("INSERT INTO broadcast_history (user_id, message_id) VALUES (?, ?)", (u_id, sent_msg.message_id))
             success_count += 1
+        except RetryAfter as e:
+            # Telegram flood-control: berilgan vaqtcha kutib, shu foydalanuvchiga qayta urinib ko'ramiz
+            await asyncio.sleep(e.retry_after + 1)
+            try:
+                sent_msg = await message_to_send.copy(chat_id=u_id)
+                cursor.execute("INSERT INTO broadcast_history (user_id, message_id) VALUES (?, ?)", (u_id, sent_msg.message_id))
+                success_count += 1
+            except Exception:
+                fail_count += 1
         except Exception as e:
             err_str = str(e).lower()
             if "blocked" in err_str or "deactivated" in err_str or "bot was blocked" in err_str:
                 blocked_count += 1
             else:
                 fail_count += 1
+        # Telegramning yuborish chegarasiga (flood-control) tushib qolmaslik uchun kichik pauza
+        await asyncio.sleep(0.05)
                 
     conn.commit()
     conn.close()
@@ -883,12 +904,20 @@ async def notify_update_send(update: Update, context: ContextTypes.DEFAULT_TYPE)
         try:
             await context.bot.send_message(chat_id=u_id, text=notify_text, parse_mode="HTML", reply_markup=notify_kb)
             success_count += 1
+        except RetryAfter as e:
+            await asyncio.sleep(e.retry_after + 1)
+            try:
+                await context.bot.send_message(chat_id=u_id, text=notify_text, parse_mode="HTML", reply_markup=notify_kb)
+                success_count += 1
+            except Exception:
+                fail_count += 1
         except Exception as e:
             err_str = str(e).lower()
             if "blocked" in err_str or "deactivated" in err_str or "bot was blocked" in err_str:
                 blocked_count += 1
             else:
                 fail_count += 1
+        await asyncio.sleep(0.05)
 
     result_text = (
         f"✅ <b>Yangilanish xabari yuborildi!</b>\n\n"
