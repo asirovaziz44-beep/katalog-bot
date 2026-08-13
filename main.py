@@ -1740,9 +1740,9 @@ async def admin_del_prod_execute(update: Update, context: ContextTypes.DEFAULT_T
     query = update.callback_query
     
     data_parts = query.data.split("_")
-    cat = data_parts[2]
-    prod_id = data_parts[3]
-    current_page = int(data_parts[4])
+    prod_id = data_parts[-2]
+    current_page = int(data_parts[-1])
+    cat = "_".join(data_parts[2:-2])
     
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -1859,9 +1859,9 @@ async def admin_del_video_execute(update: Update, context: ContextTypes.DEFAULT_
     query = update.callback_query
     
     data_parts = query.data.split("_")
-    cat = data_parts[3]
-    v_id = data_parts[4]
-    current_page = int(data_parts[5])
+    v_id = data_parts[-2]
+    current_page = int(data_parts[-1])
+    cat = "_".join(data_parts[2:-2])
     
     conn = get_db_connection()
     cursor = conn.cursor()
