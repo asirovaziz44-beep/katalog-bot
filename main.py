@@ -303,7 +303,7 @@ async def user_videos_list_click(update: Update, context: ContextTypes.DEFAULT_T
     
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT file_id, file_type, description FROM videos WHERE category = ?", (cat,))
+    cursor.execute("SELECT file_id, file_type, description FROM videos WHERE category = ? ORDER BY id DESC", (cat,))
     videos = cursor.fetchall()
     conn.close()
     
@@ -445,7 +445,7 @@ async def user_catalog_click(update: Update, context: ContextTypes.DEFAULT_TYPE)
     
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT description, photo FROM products WHERE category = ?", (cat,))
+    cursor.execute("SELECT description, photo FROM products WHERE category = ? ORDER BY id DESC", (cat,))
     products = cursor.fetchall()
     conn.close()
     
@@ -603,7 +603,7 @@ async def user_color_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT color_name, photo FROM colors WHERE brand = ?", (selected_brand,))
+    cursor.execute("SELECT color_name, photo FROM colors WHERE brand = ? ORDER BY id DESC", (selected_brand,))
     colors = cursor.fetchall()
     conn.close()
     
