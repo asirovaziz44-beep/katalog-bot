@@ -106,6 +106,12 @@ def init_db():
             photo TEXT
         )
     """)
+    # Products jadvaliga doc_file_id ustunini qo'shish
+    try:
+        cursor.execute("ALTER TABLE products ADD COLUMN doc_file_id TEXT")
+    except Exception:
+        pass
+        
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS colors (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -568,7 +574,7 @@ async def user_akril_submenu(update: Update, context: ContextTypes.DEFAULT_TYPE)
         pass
     await context.bot.send_message(chat_id=query.message.chat_id, text=cap, reply_markup=InlineKeyboardMarkup(keyboard))
 
-async def ensure_doc_file_id(bot, color_id, photo_file_id, existing_doc_id=None):
+async def ensure_doc_file_id(bot, table_name, item_id, photo_file_id, existing_doc_id=None):
     if existing_doc_id:
         return existing_doc_id
 
@@ -580,7 +586,7 @@ async def ensure_doc_file_id(bot, color_id, photo_file_id, existing_doc_id=None)
         msg = await bot.send_document(
             chat_id=DUMP_CHANNEL_ID,
             document=buf,
-            filename=f"rang_{color_id}.jpg",
+            filename=f"{table_name}_{item_id}.jpg",
             disable_notification=True
         )
         doc_id = msg.document.file_id
@@ -592,30 +598,43 @@ async def ensure_doc_file_id(bot, color_id, photo_file_id, existing_doc_id=None)
 
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute("UPDATE colors SET doc_file_id = ? WHERE id = ?", (doc_id, color_id))
+        cursor.execute(f"UPDATE {table_name} SET doc_file_id = ? WHERE id = ?", (doc_id, item_id))
         conn.commit()
         conn.close()
         return doc_id
     except Exception as e:
-        logging.warning(f"Rang #{color_id} uchun doc_file_id olishda xato: {e}")
+        logging.warning(f"{table_name} #{item_id} uchun doc_file_id olishda xato: {e}")
         return None
 
 async def backfill_doc_file_ids(bot):
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
+        # Ranglarni qidirish
         cursor.execute(
             "SELECT id, photo FROM colors "
             "WHERE (doc_file_id IS NULL OR doc_file_id = '') AND photo IS NOT NULL AND photo != ''"
         )
-        rows = cursor.fetchall()
+        c_rows = cursor.fetchall()
+        
+        # Katalog mahsulotlarini qidirish
+        cursor.execute(
+            "SELECT id, photo FROM products "
+            "WHERE (doc_file_id IS NULL OR doc_file_id = '') AND photo IS NOT NULL AND photo != ''"
+        )
+        p_rows = cursor.fetchall()
+        
         conn.close()
     except Exception as e:
-        logging.warning(f"Ranglarni fonda tayyorlashda xato: {e}")
+        logging.warning(f"Orqa fonda hujjat tayyorlashda xato: {e}")
         return
 
-    for c_id, photo in rows:
-        await ensure_doc_file_id(bot, c_id, photo)
+    for c_id, photo in c_rows:
+        await ensure_doc_file_id(bot, "colors", c_id, photo)
+        await asyncio.sleep(0.3)
+        
+    for p_id, photo in p_rows:
+        await ensure_doc_file_id(bot, "products", p_id, photo)
         await asyncio.sleep(0.3)
 
 async def post_init_backfill(application: Application):
@@ -636,31 +655,37 @@ async def inline_search_handler(update: Update, context: ContextTypes.DEFAULT_TY
     cursor = conn.cursor()
     results = []
 
+    # Katalog bo'limlari uchun (endi bu ham line ko'rinishda)
     if query_text.startswith("Katalog:"):
         cat_name = query_text.replace("Katalog:", "").strip()
         cursor.execute(
-            "SELECT id, description, photo FROM products "
+            "SELECT id, description, photo, doc_file_id FROM products "
             "WHERE category = ? AND photo IS NOT NULL AND photo != '' "
             "ORDER BY id DESC LIMIT ? OFFSET ?",
             (cat_name, limit, offset)
         )
         rows = cursor.fetchall()
 
-        for p_id, desc, photo in rows:
+        for p_id, desc, photo, doc_file_id in rows:
             caption = f"📂 <b>{cat_name.replace('_', ' ')}</b>"
             if desc:
                 caption += f"\n\n{desc}"
 
-            results.append(
-                InlineQueryResultCachedPhoto(
-                    id=f"prod_{p_id}",
-                    photo_file_id=photo,
-                    title=f"Mahsulot {p_id}",
-                    caption=caption,
-                    parse_mode="HTML"
+            if doc_file_id:
+                results.append(
+                    InlineQueryResultCachedDocument(
+                        id=f"prod_{p_id}",
+                        title=f"Mahsulot {p_id}",
+                        document_file_id=doc_file_id,
+                        caption=caption,
+                        parse_mode="HTML"
+                    )
                 )
-            )
+            else:
+                # Agar hali document formatiga o'tmagan bo'lsa, orqa fonda tayyorlab qo'yish
+                asyncio.create_task(ensure_doc_file_id(context.bot, "products", p_id, photo))
             
+    # Ranglar va Brendlar bo'limi uchun (Line ko'rinishda)
     else:
         if query_text:
             like = f"%{query_text}%"
@@ -681,23 +706,23 @@ async def inline_search_handler(update: Update, context: ContextTypes.DEFAULT_TY
 
         for c_id, brand, c_name, photo, doc_file_id in rows:
             title = c_name if c_name else f"{brand} (#{c_id})"
-            caption = f"🎨 {brand}"
+            caption = f"🎨 <b>{brand}</b>"
             if c_name:
                 caption += f"\n{c_name}"
 
-            final_doc_id = doc_file_id or await ensure_doc_file_id(context.bot, c_id, photo)
-            if not final_doc_id:
-                continue
-
-            results.append(
-                InlineQueryResultCachedDocument(
-                    id=f"color_{c_id}",
-                    title=title,
-                    description=brand,
-                    document_file_id=final_doc_id,
-                    caption=caption
+            if doc_file_id:
+                results.append(
+                    InlineQueryResultCachedDocument(
+                        id=f"color_{c_id}",
+                        title=title,
+                        description=brand,
+                        document_file_id=doc_file_id,
+                        caption=caption,
+                        parse_mode="HTML"
+                    )
                 )
-            )
+            else:
+                asyncio.create_task(ensure_doc_file_id(context.bot, "colors", c_id, photo))
 
     conn.close()
     
