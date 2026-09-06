@@ -4,7 +4,8 @@ import os
 import logging
 import sqlite3
 import asyncio
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InlineQueryResultCachedPhoto
+from io import BytesIO
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InlineQueryResultCachedDocument, InlineQueryResultCachedPhoto
 from telegram.error import RetryAfter, TimedOut, BadRequest
 from telegram.ext import (
     Application,
@@ -45,14 +46,16 @@ if not TOKEN:
     )
 MANAGER_USERNAME = "azizbek_mebel"
 
-# --- ADMIN HIMOYASI: faqat shu ID(lar)dagi foydalanuvchilar admin panelga kira oladi ---
+# Maxfiy kanal ID raqami
+DUMP_CHANNEL_ID = -1004346956457
+
+# --- ADMIN HIMOYASI ---
 ADMIN_IDS = {760912345}
 
 def is_admin(user_id: int) -> bool:
     return user_id in ADMIN_IDS
 
 def admin_only(func):
-    """Faqat ADMIN_IDS ichidagi foydalanuvchilarga ruxsat beradigan dekorator."""
     @wraps(func)
     async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE, *args, **kwargs):
         user_id = update.effective_user.id
@@ -67,7 +70,6 @@ def admin_only(func):
         return await func(update, context, *args, **kwargs)
     return wrapper
 
-# --- RENDER DATA DISK YO'LI ---
 DB_DIR = "/data"
 if not os.path.exists(DB_DIR):
     try:
@@ -82,7 +84,6 @@ def get_db_connection():
     conn.execute("PRAGMA journal_mode=WAL;")
     return conn
 
-# --- TILNI XOTIRADA KESHLASH (har safar DB'ga bormaslik uchun) ---
 _LANG_CACHE = {"value": None}
 
 (
@@ -113,6 +114,10 @@ def init_db():
             photo TEXT
         )
     """)
+    try:
+        cursor.execute("ALTER TABLE colors ADD COLUMN doc_file_id TEXT")
+    except Exception:
+        pass
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS brands (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -376,23 +381,23 @@ async def user_catalog_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if lang == "ru":
         keyboard = [
             [InlineKeyboardButton("🛏 Спальня", callback_data="subcat_yotoqxona")],
-            [InlineKeyboardButton("🍳 Кухня", callback_data="ucat_Oshxona_0"),
-             InlineKeyboardButton("🛋 Мягкая мебель", callback_data="ucat_Yumshoq_mebel_0")],
-            [InlineKeyboardButton("🚪 Прихожая", callback_data="ucat_Koridor_0"),
-             InlineKeyboardButton("📺 ТВ зона", callback_data="ucat_TV_zona_0")],
+            [InlineKeyboardButton("🍳 Кухня", switch_inline_query_current_chat="Katalog: Oshxona"),
+             InlineKeyboardButton("🛋 Мягкая мебель", switch_inline_query_current_chat="Katalog: Yumshoq_mebel")],
+            [InlineKeyboardButton("🚪 Прихожая", switch_inline_query_current_chat="Katalog: Koridor"),
+             InlineKeyboardButton("📺 ТВ зона", switch_inline_query_current_chat="Katalog: TV_zona")],
             [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_main")]
         ]
-        caption_text = "Выберите категорию:"
+        caption_text = "Выберите категорию (нажмите на кнопку, чтобы открыть галерею):"
     else:
         keyboard = [
             [InlineKeyboardButton("🛏 Yotoqxona", callback_data="subcat_yotoqxona")],
-            [InlineKeyboardButton("🍳 Oshxona", callback_data="ucat_Oshxona_0"),
-             InlineKeyboardButton("🛋 Yumshoq mebel", callback_data="ucat_Yumshoq_mebel_0")],
-            [InlineKeyboardButton("🚪 Koridor", callback_data="ucat_Koridor_0"),
-             InlineKeyboardButton("📺 TV zona", callback_data="ucat_TV_zona_0")],
+            [InlineKeyboardButton("🍳 Oshxona", switch_inline_query_current_chat="Katalog: Oshxona"),
+             InlineKeyboardButton("🛋 Yumshoq mebel", switch_inline_query_current_chat="Katalog: Yumshoq_mebel")],
+            [InlineKeyboardButton("🚪 Koridor", switch_inline_query_current_chat="Katalog: Koridor"),
+             InlineKeyboardButton("📺 TV zona", switch_inline_query_current_chat="Katalog: TV_zona")],
             [InlineKeyboardButton("⬅️ Orqaga", callback_data="back_to_main")]
         ]
-        caption_text = "Kategoriyani tanlang:"
+        caption_text = "Kategoriyani tanlang (galereyani ochish uchun tugmani bosing):"
         
     try:
         await query.message.delete()
@@ -407,20 +412,20 @@ async def user_yotoqxona_submenu(update: Update, context: ContextTypes.DEFAULT_T
     
     if lang == "ru":
         keyboard = [
-            [InlineKeyboardButton("🛏 Спальня для взрослых", callback_data="ucat_Kattalar_yotoqxonasi_0")],
-            [InlineKeyboardButton("🧸 Детская спальня", callback_data="ucat_Bolalar_yotoqxonasi_0")],
-            [InlineKeyboardButton("🚪 Шкаф-купе / Гардероб", callback_data="ucat_Shkaf_kupe_garderob_0")],
+            [InlineKeyboardButton("🛏 Спальня для взрослых", switch_inline_query_current_chat="Katalog: Kattalar_yotoqxonasi")],
+            [InlineKeyboardButton("🧸 Детская спальня", switch_inline_query_current_chat="Katalog: Bolalar_yotoqxonasi")],
+            [InlineKeyboardButton("🚪 Шкаф-купе / Гардероб", switch_inline_query_current_chat="Katalog: Shkaf_kupe_garderob")],
             [InlineKeyboardButton("⬅️ Назад", callback_data="main_catalog")]
         ]
-        caption_text = "Выберите раздел спальни:"
+        caption_text = "Выберите раздел спальни (нажмите для просмотра):"
     else:
         keyboard = [
-            [InlineKeyboardButton("🛏 Kattalar yotoqxonasi", callback_data="ucat_Kattalar_yotoqxonasi_0")],
-            [InlineKeyboardButton("🧸 Bolalar yotoqxonasi", callback_data="ucat_Bolalar_yotoqxonasi_0")],
-            [InlineKeyboardButton("🚪 Shkaf kupe / Garderob", callback_data="ucat_Shkaf_kupe_garderob_0")],
+            [InlineKeyboardButton("🛏 Kattalar yotoqxonasi", switch_inline_query_current_chat="Katalog: Kattalar_yotoqxonasi")],
+            [InlineKeyboardButton("🧸 Bolalar yotoqxonasi", switch_inline_query_current_chat="Katalog: Bolalar_yotoqxonasi")],
+            [InlineKeyboardButton("🚪 Shkaf kupe / Garderob", switch_inline_query_current_chat="Katalog: Shkaf_kupe_garderob")],
             [InlineKeyboardButton("⬅️ Orqaga", callback_data="main_catalog")]
         ]
-        caption_text = "Yotoqxona bo'limini tanlang:"
+        caption_text = "Yotoqxona bo'limini tanlang (ko'rish uchun bosing):"
         
     try:
         await query.message.delete()
@@ -429,6 +434,7 @@ async def user_yotoqxona_submenu(update: Update, context: ContextTypes.DEFAULT_T
     await context.bot.send_message(chat_id=query.message.chat_id, text=caption_text, reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def user_catalog_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # Bu funksiya oldingi sahifalash tizimi uchun saqlab qolindi (agar eski xabarlardagi tugmalar bosilsa)
     query = update.callback_query
     await query.answer()
     
@@ -563,49 +569,138 @@ async def user_akril_submenu(update: Update, context: ContextTypes.DEFAULT_TYPE)
         pass
     await context.bot.send_message(chat_id=query.message.chat_id, text=cap, reply_markup=InlineKeyboardMarkup(keyboard))
 
-# --- Yangilangan Rang qidiruv (InlineQuery) funksiyasi ---
-async def inline_color_search(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query_text = update.inline_query.query.strip()
+async def ensure_doc_file_id(bot, color_id, photo_file_id, existing_doc_id=None):
+    if existing_doc_id:
+        return existing_doc_id
 
-    # Agar qidiruv maydoni bo'sh bo'lsa (X tugmasi bosilganda), keshni nollab oynani tozalash
+    try:
+        tg_file = await bot.get_file(photo_file_id)
+        buf = BytesIO()
+        await tg_file.download_to_memory(out=buf)
+        buf.seek(0)
+        msg = await bot.send_document(
+            chat_id=DUMP_CHANNEL_ID,
+            document=buf,
+            filename=f"rang_{color_id}.jpg",
+            disable_notification=True
+        )
+        doc_id = msg.document.file_id
+        
+        try:
+            await msg.delete()
+        except Exception:
+            pass
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("UPDATE colors SET doc_file_id = ? WHERE id = ?", (doc_id, color_id))
+        conn.commit()
+        conn.close()
+        return doc_id
+    except Exception as e:
+        logging.warning(f"Rang #{color_id} uchun doc_file_id olishda xato: {e}")
+        return None
+
+async def backfill_doc_file_ids(bot):
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id, photo FROM colors "
+            "WHERE (doc_file_id IS NULL OR doc_file_id = '') AND photo IS NOT NULL AND photo != ''"
+        )
+        rows = cursor.fetchall()
+        conn.close()
+    except Exception as e:
+        logging.warning(f"Ranglarni fonda tayyorlashda xato: {e}")
+        return
+
+    for c_id, photo in rows:
+        await ensure_doc_file_id(bot, c_id, photo)
+        await asyncio.sleep(0.3)
+
+async def post_init_backfill(application: Application):
+    asyncio.create_task(backfill_doc_file_ids(application.bot))
+
+async def inline_search_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query_text = update.inline_query.query.strip()
+    
+    # Qidiruv bo'sh bo'lganda (X bosilganda) ekranni darhol tozalash:
     if not query_text:
         await update.inline_query.answer([], cache_time=0)
         return
 
     conn = get_db_connection()
     cursor = conn.cursor()
-    
-    # Faqat matn kiritilganda qidirish
-    like = f"%{query_text}%"
-    cursor.execute(
-        "SELECT id, brand, color_name, photo FROM colors "
-        "WHERE (brand LIKE ? OR color_name LIKE ?) AND photo IS NOT NULL AND photo != '' "
-        "ORDER BY id DESC LIMIT 50",
-        (like, like)
-    )
-    
-    rows = cursor.fetchall()
-    conn.close()
-
     results = []
-    for c_id, brand, c_name, photo in rows:
-        title = c_name if c_name else f"{brand} (#{c_id})"
-        caption = f"🎨 {brand}"
-        if c_name:
-            caption += f"\n{c_name}"
 
-        results.append(
-            InlineQueryResultCachedPhoto(
-                id=f"color_{c_id}",
-                title=title,
-                description=brand,
-                photo_file_id=photo,
-                caption=caption
-            )
+    # Agar so'rov katalog bo'limlaridan biriga tegishli bo'lsa
+    if query_text.startswith("Katalog:"):
+        cat_name = query_text.replace("Katalog:", "").strip()
+        cursor.execute(
+            "SELECT id, description, photo FROM products "
+            "WHERE category = ? AND photo IS NOT NULL AND photo != '' "
+            "ORDER BY id DESC LIMIT 50",
+            (cat_name,)
         )
+        rows = cursor.fetchall()
 
-    # Natijalarni ham keshlamaslik (cache_time=0) muhim, shunda eski ma'lumot qotib qolmaydi
-    await update.inline_query.answer(results, cache_time=0, is_personal=True)
+        for p_id, desc, photo in rows:
+            caption = f"📂 <b>{cat_name.replace('_', ' ')}</b>"
+            if desc:
+                caption += f"\n\n{desc}"
+
+            # CachedPhoto orqali jo'natilsa to'rtburchak galereya shaklida chiqadi
+            results.append(
+                InlineQueryResultCachedPhoto(
+                    id=f"prod_{p_id}",
+                    photo_file_id=photo,
+                    title=f"Mahsulot {p_id}",
+                    caption=caption,
+                    parse_mode="HTML"
+                )
+            )
+            
+    # Agar so'rov ranglar bo'limiga tegishli bo'lsa
+    else:
+        if query_text:
+            like = f"%{query_text}%"
+            cursor.execute(
+                "SELECT id, brand, color_name, photo, doc_file_id FROM colors "
+                "WHERE (brand LIKE ? OR color_name LIKE ?) AND photo IS NOT NULL AND photo != '' "
+                "ORDER BY id DESC LIMIT 50",
+                (like, like)
+            )
+        else:
+            cursor.execute(
+                "SELECT id, brand, color_name, photo, doc_file_id FROM colors "
+                "WHERE photo IS NOT NULL AND photo != '' "
+                "ORDER BY id DESC LIMIT 50"
+            )
+        rows = cursor.fetchall()
+
+        for c_id, brand, c_name, photo, doc_file_id in rows:
+            title = c_name if c_name else f"{brand} (#{c_id})"
+            caption = f"🎨 {brand}"
+            if c_name:
+                caption += f"\n{c_name}"
+
+            final_doc_id = doc_file_id or await ensure_doc_file_id(context.bot, c_id, photo)
+            if not final_doc_id:
+                continue
+
+            results.append(
+                InlineQueryResultCachedDocument(
+                    id=f"color_{c_id}",
+                    title=title,
+                    description=brand,
+                    document_file_id=final_doc_id,
+                    caption=caption
+                )
+            )
+
+    conn.close()
+    await update.inline_query.answer(results, cache_time=1, is_personal=True)
 
 async def main_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -1973,6 +2068,7 @@ if __name__ == "__main__":
         .write_timeout(300)
         .connect_timeout(300)
         .pool_timeout(300)
+        .post_init(post_init_backfill)
         .build()
     )
 
@@ -1983,7 +2079,7 @@ if __name__ == "__main__":
     application.add_handler(CallbackQueryHandler(admin_users_list, pattern="^admin_users_list_"))
     application.add_handler(CallbackQueryHandler(admin_brands_menu, pattern="^admin_brands_menu$"))
     application.add_handler(CallbackQueryHandler(noop_handler, pattern="^noop$"))
-    application.add_handler(InlineQueryHandler(inline_color_search))
+    application.add_handler(InlineQueryHandler(inline_search_handler)) # Shu yerda qidiruv ulandi
     
     application.add_handler(CallbackQueryHandler(broadcast_delete, pattern="^broadcast_delete$"))
     application.add_handler(CallbackQueryHandler(notify_update_confirm, pattern="^notify_update_confirm$"))
