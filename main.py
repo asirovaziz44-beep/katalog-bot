@@ -1,6 +1,23 @@
 from flask import Flask
 from threading import Thread
 import os
+import logging
+import sqlite3
+import asyncio
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InlineQueryResultCachedPhoto
+from telegram.error import RetryAfter, TimedOut, BadRequest
+from telegram.ext import (
+    Application,
+    CommandHandler,
+    CallbackQueryHandler,
+    MessageHandler,
+    InlineQueryHandler,
+    filters,
+    ContextTypes,
+    ConversationHandler
+)
+from uuid import uuid4
+from functools import wraps
 
 app = Flask('')
 
@@ -14,24 +31,6 @@ def run():
 def keep_alive():
     t = Thread(target=run)
     t.start()
-
-import logging
-import sqlite3
-import asyncio
-from io import BytesIO
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InlineQueryResultCachedDocument
-from telegram.error import RetryAfter, TimedOut, BadRequest
-from telegram.ext import (
-    Application,
-    CommandHandler,
-    CallbackQueryHandler,
-    MessageHandler,
-    InlineQueryHandler,
-    filters,
-    ContextTypes,
-    ConversationHandler
-)
-from uuid import uuid4
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
@@ -51,8 +50,6 @@ ADMIN_IDS = {760912345}
 
 def is_admin(user_id: int) -> bool:
     return user_id in ADMIN_IDS
-
-from functools import wraps
 
 def admin_only(func):
     """Faqat ADMIN_IDS ichidagi foydalanuvchilarga ruxsat beradigan dekorator."""
@@ -116,11 +113,6 @@ def init_db():
             photo TEXT
         )
     """)
-    # Eski bazalarda bu ustun bo'lmasligi mumkin - xatolik chiqsa e'tiborsiz qoldiramiz
-    try:
-        cursor.execute("ALTER TABLE colors ADD COLUMN doc_file_id TEXT")
-    except Exception:
-        pass
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS brands (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -150,7 +142,6 @@ def init_db():
             description TEXT
         )
     """)
-    # Ommaviy xabarlar (rassilka) tarixini saqlash uchun jadval
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS broadcast_history (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -572,88 +563,8 @@ async def user_akril_submenu(update: Update, context: ContextTypes.DEFAULT_TYPE)
         pass
     await context.bot.send_message(chat_id=query.message.chat_id, text=cap, reply_markup=InlineKeyboardMarkup(keyboard))
 
-async def ensure_doc_file_id(bot, color_id, photo_file_id, existing_doc_id=None, admin_id=None):
-    """
-    Telegram'da rasm (photo) va fayl (document) file_id'lari bir-birining
-    o'rniga ishlatilmaydi (Telegram'ning o'z cheklovi). Shuning uchun ranglar
-    ro'yxati (list) ko'rinishida to'g'ri thumbnail bilan chiqishi uchun, har
-    bir rasmni bir marta "document" sifatida qayta yuborib, shu turdagi
-    file_id'ni olib, bazaga saqlab qo'yamiz. Bu — faqat bitta rasm uchun
-    BIR MARTA bajariladigan, ko'rinmas texnik jarayon (admin chatiga jo'natib,
-    darhol o'chirib yuboriladi).
-    """
-    if existing_doc_id:
-        return existing_doc_id
-
-    admin_id = admin_id or (next(iter(ADMIN_IDS)) if ADMIN_IDS else None)
-    if not admin_id:
-        return None
-
-    try:
-        tg_file = await bot.get_file(photo_file_id)
-        buf = BytesIO()
-        await tg_file.download_to_memory(out=buf)
-        buf.seek(0)
-        msg = await bot.send_document(
-            chat_id=admin_id,
-            document=buf,
-            filename=f"rang_{color_id}.jpg",
-            disable_notification=True
-        )
-        doc_id = msg.document.file_id
-        try:
-            await msg.delete()
-        except Exception:
-            pass
-
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("UPDATE colors SET doc_file_id = ? WHERE id = ?", (doc_id, color_id))
-        conn.commit()
-        conn.close()
-        return doc_id
-    except Exception as e:
-        logging.warning(f"Rang #{color_id} uchun doc_file_id olishda xato: {e}")
-        return None
-
-async def backfill_doc_file_ids(bot):
-    """Bot ishga tushganda, hali 'document' turiga aylantirilmagan eski
-    ranglarni fonda, birma-bir, ko'rinmas tarzda tayyorlab qo'yadi."""
-    admin_id = next(iter(ADMIN_IDS)) if ADMIN_IDS else None
-    if not admin_id:
-        return
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT id, photo FROM colors "
-            "WHERE (doc_file_id IS NULL OR doc_file_id = '') AND photo IS NOT NULL AND photo != ''"
-        )
-        rows = cursor.fetchall()
-        conn.close()
-    except Exception as e:
-        logging.warning(f"Ranglarni fonda tayyorlashda xato: {e}")
-        return
-
-    for c_id, photo in rows:
-        await ensure_doc_file_id(bot, c_id, photo, None, admin_id)
-        await asyncio.sleep(0.3)
-
-async def post_init_backfill(application: Application):
-    asyncio.create_task(backfill_doc_file_ids(application.bot))
-
+# --- Yangilangan Rang qidiruv (InlineQuery) funksiyasi ---
 async def inline_color_search(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Foydalanuvchi chatda '@bot_nomi so'z' deb yozganda (yoki bo'lim tugmasi
-    bosilib, avtomatik ochilganda) ishga tushadi. Natijalar Eman Materials'dagi
-    kabi BITTA QATOR ko'rinishida: chapda kichik rasm, o'ngda nomi/kodi va
-    bo'lim nomi chiqadi. Birontasini bossa, o'sha rasmning o'zi hech qanday
-    qo'shimcha tasdiqlashsiz darhol chatga tashlanadi.
-
-    Muhim: rasm uchun tashqi URL (get_file) kerak emas — CachedDocument
-    file_id'ning o'zidan foydalanadi, shuning uchun kichik rasm (thumbnail)
-    hamisha to'g'ri va tez ko'rinadi (qora quti bo'lib qolmaydi).
-    """
     query_text = update.inline_query.query.strip()
 
     conn = get_db_connection()
@@ -661,14 +572,14 @@ async def inline_color_search(update: Update, context: ContextTypes.DEFAULT_TYPE
     if query_text:
         like = f"%{query_text}%"
         cursor.execute(
-            "SELECT id, brand, color_name, photo, doc_file_id FROM colors "
+            "SELECT id, brand, color_name, photo FROM colors "
             "WHERE (brand LIKE ? OR color_name LIKE ?) AND photo IS NOT NULL AND photo != '' "
             "ORDER BY id DESC LIMIT 50",
             (like, like)
         )
     else:
         cursor.execute(
-            "SELECT id, brand, color_name, photo, doc_file_id FROM colors "
+            "SELECT id, brand, color_name, photo FROM colors "
             "WHERE photo IS NOT NULL AND photo != '' "
             "ORDER BY id DESC LIMIT 50"
         )
@@ -676,25 +587,19 @@ async def inline_color_search(update: Update, context: ContextTypes.DEFAULT_TYPE
     conn.close()
 
     results = []
-    for c_id, brand, c_name, photo, doc_file_id in rows:
+    for c_id, brand, c_name, photo in rows:
         title = c_name if c_name else f"{brand} (#{c_id})"
         caption = f"🎨 {brand}"
         if c_name:
             caption += f"\n{c_name}"
 
-        # Agar bu rang hali "document" turiga aylantirilmagan bo'lsa (masalan
-        # yangi qo'shilgan bo'lsa-yu, fon jarayoni hali yetib bormagan bo'lsa),
-        # shu yerning o'zida bir martalik tayyorlab olamiz.
-        final_doc_id = doc_file_id or await ensure_doc_file_id(context.bot, c_id, photo)
-        if not final_doc_id:
-            continue
-
+        # To'g'ridan-to'g'ri rasmni o'zidan foydalanib ro'yxat shakllantiramiz
         results.append(
-            InlineQueryResultCachedDocument(
+            InlineQueryResultCachedPhoto(
                 id=f"color_{c_id}",
                 title=title,
                 description=brand,
-                document_file_id=final_doc_id,
+                photo_file_id=photo,
                 caption=caption
             )
         )
@@ -863,7 +768,6 @@ async def broadcast_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
             cursor.execute("INSERT INTO broadcast_history (user_id, message_id) VALUES (?, ?)", (u_id, sent_msg.message_id))
             success_count += 1
         except RetryAfter as e:
-            # Telegram flood-control: berilgan vaqtcha kutib, shu foydalanuvchiga qayta urinib ko'ramiz
             await asyncio.sleep(e.retry_after + 1)
             try:
                 sent_msg = await message_to_send.copy(chat_id=u_id)
@@ -877,7 +781,6 @@ async def broadcast_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 blocked_count += 1
             else:
                 fail_count += 1
-        # Telegramning yuborish chegarasiga (flood-control) tushib qolmaslik uchun kichik pauza
         await asyncio.sleep(0.05)
                 
     conn.commit()
@@ -1341,10 +1244,8 @@ async def add_color_name_text(update: Update, context: ContextTypes.DEFAULT_TYPE
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("INSERT INTO colors (brand, color_name, photo) VALUES (?, ?, ?)", (brand, c_name, photo))
-    new_id = cursor.lastrowid
     conn.commit()
     conn.close()
-    asyncio.create_task(ensure_doc_file_id(context.bot, new_id, photo))
     
     keyboard = [
         [InlineKeyboardButton("➕ Yana rasm qo'shish", callback_data=f"abrand_{get_brand_id(brand)}")],
@@ -1362,10 +1263,8 @@ async def add_color_name_skip(update: Update, context: ContextTypes.DEFAULT_TYPE
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("INSERT INTO colors (brand, color_name, photo) VALUES (?, ?, ?)", (brand, "", photo))
-    new_id = cursor.lastrowid
     conn.commit()
     conn.close()
-    asyncio.create_task(ensure_doc_file_id(context.bot, new_id, photo))
     
     try:
         await query.message.delete()
@@ -2073,7 +1972,6 @@ if __name__ == "__main__":
         .write_timeout(300)
         .connect_timeout(300)
         .pool_timeout(300)
-        .post_init(post_init_backfill)
         .build()
     )
 
