@@ -1709,13 +1709,25 @@ async def admin_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     v_count = cursor.fetchone()[0]
     conn.close()
     
+    # Bazaning xotiradagi hajmini hisoblash
+    try:
+        db_size_bytes = os.path.getsize(DB_PATH)
+        if db_size_bytes < 1024 * 1024:
+            db_size_str = f"{db_size_bytes / 1024:.2f} KB"
+        else:
+            db_size_str = f"{db_size_bytes / (1024 * 1024):.2f} MB"
+    except Exception:
+        db_size_str = "Noma'lum"
+    
     text = (
         f"📊 <b>Statistika</b>\n\n"
         f"👥 Jami foydalanuvchilar: <b>{u_count} ta</b>\n"
         f"📦 Jami mahsulotlar: {p_count} ta\n"
         f"🎨 Jami ranglar/materiallar: {c_count} ta\n"
         f"💡 Jami videolar/layfhaklar: {v_count} ta\n"
-        f"📂 Jami brend/bo'limlar: {b_count} ta"
+        f"📂 Jami brend/bo'limlar: {b_count} ta\n\n"
+        f"💾 <b>Ma'lumotlar bazasi hajmi:</b> {db_size_str}\n"
+        f"☁️ <i>Eslatma: Yuklangan barcha rasm va videolar Telegram serverlarida saqlanadi, shuning uchun ular server xotirasini band qilmaydi.</i>"
     )
     
     reply_kb = InlineKeyboardMarkup([
