@@ -725,20 +725,28 @@ async def fast_delete_execute(update: Update, context: ContextTypes.DEFAULT_TYPE
     conn = get_db_connection()
     cursor = conn.cursor()
     
+    back_callback = "back_to_admin"
     if table == "prod":
         cursor.execute("DELETE FROM products WHERE id = ?", (item_id,))
+        back_callback = "admin_del_prod_menu"
     elif table == "color":
         cursor.execute("DELETE FROM colors WHERE id = ?", (item_id,))
+        back_callback = "admin_del_color_start"
         
     conn.commit()
     conn.close()
     
     await query.answer("✅ Rasm muvaffaqiyatli o'chirildi!", show_alert=True)
+    
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("⬅️ Bo'limlarga qaytish", callback_data=back_callback)]
+    ])
+    
     try:
-        await query.edit_message_caption("✅ <b>Ushbu rasm bazadan o'chirildi!</b>", parse_mode="HTML")
+        await query.edit_message_caption("✅ <b>Ushbu rasm bazadan o'chirildi!</b>", parse_mode="HTML", reply_markup=keyboard)
     except:
         try:
-            await query.edit_message_text("✅ <b>Ushbu rasm bazadan o'chirildi!</b>", parse_mode="HTML")
+            await query.edit_message_text("✅ <b>Ushbu rasm bazadan o'chirildi!</b>", parse_mode="HTML", reply_markup=keyboard)
         except:
             pass
 
