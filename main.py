@@ -4,8 +4,7 @@ import os
 import logging
 import sqlite3
 import asyncio
-from io import BytesIO
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InlineQueryResultCachedDocument, InlineQueryResultCachedPhoto
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InlineQueryResultCachedPhoto
 from telegram.error import RetryAfter, TimedOut, BadRequest
 from telegram.ext import (
     Application,
@@ -17,7 +16,6 @@ from telegram.ext import (
     ContextTypes,
     ConversationHandler
 )
-from uuid import uuid4
 from functools import wraps
 
 app = Flask('')
@@ -46,7 +44,7 @@ if not TOKEN:
     )
 MANAGER_USERNAME = "azizbek_mebel"
 
-# Maxfiy kanal ID raqami
+# Maxfiy kanal ID raqami (agar kerak bo'lsa)
 DUMP_CHANNEL_ID = -1004346956457
 
 # --- ADMIN HIMOYASI ---
@@ -106,7 +104,6 @@ def init_db():
             photo TEXT
         )
     """)
-    # Products jadvaliga doc_file_id ustunini qo'shish
     try:
         cursor.execute("ALTER TABLE products ADD COLUMN doc_file_id TEXT")
     except Exception:
@@ -574,71 +571,6 @@ async def user_akril_submenu(update: Update, context: ContextTypes.DEFAULT_TYPE)
         pass
     await context.bot.send_message(chat_id=query.message.chat_id, text=cap, reply_markup=InlineKeyboardMarkup(keyboard))
 
-async def ensure_doc_file_id(bot, table_name, item_id, photo_file_id, existing_doc_id=None):
-    if existing_doc_id:
-        return existing_doc_id
-
-    try:
-        tg_file = await bot.get_file(photo_file_id)
-        buf = BytesIO()
-        await tg_file.download_to_memory(out=buf)
-        buf.seek(0)
-        msg = await bot.send_document(
-            chat_id=DUMP_CHANNEL_ID,
-            document=buf,
-            filename=f"{table_name}_{item_id}.jpg",
-            disable_notification=True
-        )
-        doc_id = msg.document.file_id
-        
-        try:
-            await msg.delete()
-        except Exception:
-            pass
-
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute(f"UPDATE {table_name} SET doc_file_id = ? WHERE id = ?", (doc_id, item_id))
-        conn.commit()
-        conn.close()
-        return doc_id
-    except Exception as e:
-        logging.warning(f"{table_name} #{item_id} uchun doc_file_id olishda xato: {e}")
-        return None
-
-async def backfill_doc_file_ids(bot):
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        # Ranglarni qidirish
-        cursor.execute(
-            "SELECT id, photo FROM colors "
-            "WHERE (doc_file_id IS NULL OR doc_file_id = '') AND photo IS NOT NULL AND photo != ''"
-        )
-        c_rows = cursor.fetchall()
-        
-        # Katalog mahsulotlarini qidirish
-        cursor.execute(
-            "SELECT id, photo FROM products "
-            "WHERE (doc_file_id IS NULL OR doc_file_id = '') AND photo IS NOT NULL AND photo != ''"
-        )
-        p_rows = cursor.fetchall()
-        
-        conn.close()
-    except Exception as e:
-        logging.warning(f"Orqa fonda hujjat tayyorlashda xato: {e}")
-        return
-
-    for c_id, photo in c_rows:
-        await ensure_doc_file_id(bot, "colors", c_id, photo)
-        await asyncio.sleep(0.3)
-        
-    for p_id, photo in p_rows:
-        await ensure_doc_file_id(bot, "products", p_id, photo)
-        await asyncio.sleep(0.3)
-
-async def post_init_backfill(application: Application):
-    asyncio.create_task(backfill_doc_file_ids(application.bot))
 
 async def inline_search_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query_text = update.inline_query.query.strip()
@@ -655,77 +587,69 @@ async def inline_search_handler(update: Update, context: ContextTypes.DEFAULT_TY
     cursor = conn.cursor()
     results = []
 
-    # Katalog bo'limlari uchun (endi bu ham line ko'rinishda)
+    # Katalog bo'limlari uchun (Galereya ko'rinishida)
     if query_text.startswith("Katalog:"):
         cat_name = query_text.replace("Katalog:", "").strip()
         cursor.execute(
-            "SELECT id, description, photo, doc_file_id FROM products "
+            "SELECT id, description, photo FROM products "
             "WHERE category = ? AND photo IS NOT NULL AND photo != '' "
             "ORDER BY id DESC LIMIT ? OFFSET ?",
             (cat_name, limit, offset)
         )
         rows = cursor.fetchall()
 
-        for p_id, desc, photo, doc_file_id in rows:
+        for p_id, desc, photo in rows:
             caption = f"📂 <b>{cat_name.replace('_', ' ')}</b>"
             if desc:
                 caption += f"\n\n{desc}"
 
-            if doc_file_id:
-                results.append(
-                    InlineQueryResultCachedDocument(
-                        id=f"prod_{p_id}",
-                        title=f"Mahsulot {p_id}",
-                        document_file_id=doc_file_id,
-                        caption=caption,
-                        parse_mode="HTML"
-                    )
+            results.append(
+                InlineQueryResultCachedPhoto(
+                    id=f"prod_{p_id}",
+                    photo_file_id=photo,
+                    title=f"Mahsulot {p_id}",
+                    caption=caption,
+                    parse_mode="HTML"
                 )
-            else:
-                # Agar hali document formatiga o'tmagan bo'lsa, orqa fonda tayyorlab qo'yish
-                asyncio.create_task(ensure_doc_file_id(context.bot, "products", p_id, photo))
+            )
             
-    # Ranglar va Brendlar bo'limi uchun (Line ko'rinishda)
+    # Ranglar va Brendlar bo'limi uchun (Galereya ko'rinishida)
     else:
         if query_text:
             like = f"%{query_text}%"
             cursor.execute(
-                "SELECT id, brand, color_name, photo, doc_file_id FROM colors "
+                "SELECT id, brand, color_name, photo FROM colors "
                 "WHERE (brand LIKE ? OR color_name LIKE ?) AND photo IS NOT NULL AND photo != '' "
                 "ORDER BY id DESC LIMIT ? OFFSET ?",
                 (like, like, limit, offset)
             )
         else:
             cursor.execute(
-                "SELECT id, brand, color_name, photo, doc_file_id FROM colors "
+                "SELECT id, brand, color_name, photo FROM colors "
                 "WHERE photo IS NOT NULL AND photo != '' "
                 "ORDER BY id DESC LIMIT ? OFFSET ?",
                 (limit, offset)
             )
         rows = cursor.fetchall()
 
-        for c_id, brand, c_name, photo, doc_file_id in rows:
-            title = c_name if c_name else f"{brand} (#{c_id})"
+        for c_id, brand, c_name, photo in rows:
             caption = f"🎨 <b>{brand}</b>"
             if c_name:
                 caption += f"\n{c_name}"
 
-            if doc_file_id:
-                results.append(
-                    InlineQueryResultCachedDocument(
-                        id=f"color_{c_id}",
-                        title=title,
-                        description=brand,
-                        document_file_id=doc_file_id,
-                        caption=caption,
-                        parse_mode="HTML"
-                    )
+            results.append(
+                InlineQueryResultCachedPhoto(
+                    id=f"color_{c_id}",
+                    photo_file_id=photo,
+                    title=c_name if c_name else f"{brand} (#{c_id})",
+                    caption=caption,
+                    parse_mode="HTML"
                 )
-            else:
-                asyncio.create_task(ensure_doc_file_id(context.bot, "colors", c_id, photo))
+            )
 
     conn.close()
     
+    # Cheksiz varaqlash mantiqi (pastga tortganda keyingi 50 tasini qo'shish)
     next_offset = str(offset + limit) if len(rows) == limit else ""
     await update.inline_query.answer(results, cache_time=1, is_personal=True, next_offset=next_offset)
 
@@ -1196,7 +1120,8 @@ async def admin_brands_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         [InlineKeyboardButton("➕ Yangi brend/bo'lim qo'shish", callback_data="abrand_add"),
          InlineKeyboardButton("🎨 Brendga rang/rasm qo'shish", callback_data="acolor_start")],
-        [InlineKeyboardButton("✏️ Rang nomi/kodini o'zgartirish", callback_data="acolor_edit_start")],
+        [InlineKeyboardButton("✏️ Rang nomi/kodini o'zgartirish", callback_data="acolor_edit_start"),
+         InlineKeyboardButton("🗑 Rang/rasmni o'chirish", callback_data="adelcolor_start")],
         [InlineKeyboardButton("🗑 Brendni o'chirish", callback_data="abrand_del")],
         [InlineKeyboardButton("⬅️ Orqaga", callback_data="back_to_admin")]
     ]
@@ -1565,6 +1490,126 @@ async def admin_edit_color_save(update: Update, context: ContextTypes.DEFAULT_TY
         reply_markup=InlineKeyboardMarkup([k for k in keyboard if k])
     )
     return EDIT_COLOR_BRAND
+
+# --- RANGLARNI O'CHIRISH FUNKSIYALARI ---
+@admin_only
+async def admin_del_color_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, brand_name FROM brands")
+    brands = cursor.fetchall()
+    conn.close()
+
+    back_kb = InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Orqaga", callback_data="admin_brands_menu")]])
+    try:
+        await query.message.delete()
+    except:
+        pass
+
+    if not brands:
+        await context.bot.send_message(chat_id=query.message.chat_id, text="Hali brend/bo'lim yo'q.", reply_markup=back_kb)
+        return
+
+    keyboard = []
+    row = []
+    for b in brands:
+        row.append(InlineKeyboardButton(b[1], callback_data=f"adelcview_{b[0]}_0"))
+        if len(row) == 2:
+            keyboard.append(row)
+            row = []
+    if row:
+        keyboard.append(row)
+    keyboard.append([InlineKeyboardButton("⬅️ Orqaga", callback_data="admin_brands_menu")])
+
+    await context.bot.send_message(chat_id=query.message.chat_id, text="Qaysi bo'limdagi ranglarni o'chirmoqchisiz?", reply_markup=InlineKeyboardMarkup(keyboard))
+
+@admin_only
+async def admin_del_color_view(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    
+    data_parts = query.data.split("_")
+    b_id = int(data_parts[1])
+    idx = int(data_parts[2])
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT brand_name FROM brands WHERE id = ?", (b_id,))
+    brand_res = cursor.fetchone()
+    
+    if not brand_res:
+        conn.close()
+        return
+        
+    brand_name = brand_res[0]
+    cursor.execute("SELECT id, color_name, photo FROM colors WHERE brand = ? ORDER BY id DESC", (brand_name,))
+    colors = cursor.fetchall()
+    conn.close()
+    
+    try:
+        await query.message.delete()
+    except:
+        pass
+        
+    back_kb = InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Orqaga (Brendlar)", callback_data="adelcolor_start")]])
+
+    if not colors:
+        await context.bot.send_message(chat_id=query.message.chat_id, text=f"'{brand_name}' bo'limida o'chirish uchun ranglar yo'q.", reply_markup=back_kb)
+        return
+        
+    if idx >= len(colors): idx = len(colors) - 1
+    if idx < 0: idx = 0
+        
+    c = colors[idx]
+    c_id, c_name, photo = c[0], c[1], c[2]
+    
+    cur_name = c_name if c_name else "(nomsiz)"
+    caption = f"📄 <b>{idx+1} / {len(colors)}</b>\n🆔 <b>ID: {c_id}</b> | 📂 Bo'lim: <b>{brand_name}</b>\n🎨 Nomi/Kodi: <b>{cur_name}</b>"
+        
+    nav_buttons = []
+    if idx > 0:
+        nav_buttons.append(InlineKeyboardButton("⬅️ Oldingi", callback_data=f"adelcview_{b_id}_{idx-1}"))
+    
+    nav_buttons.append(InlineKeyboardButton("❌ O'chirish", callback_data=f"adelcdel_{c_id}_{b_id}_{idx}"))
+    
+    if idx < len(colors) - 1:
+        nav_buttons.append(InlineKeyboardButton("Keyingi ➡️", callback_data=f"adelcview_{b_id}_{idx+1}"))
+
+    markup = InlineKeyboardMarkup([
+        nav_buttons,
+        [InlineKeyboardButton("⬅️ Orqaga (Brendlar)", callback_data="adelcolor_start")]
+    ])
+    
+    if photo:
+        await context.bot.send_photo(chat_id=query.message.chat_id, photo=photo, caption=caption, parse_mode="HTML", reply_markup=markup)
+    else:
+        await context.bot.send_message(chat_id=query.message.chat_id, text=caption, parse_mode="HTML", reply_markup=markup)
+
+@admin_only
+async def admin_del_color_execute(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    
+    data_parts = query.data.split("_")
+    c_id = int(data_parts[1])
+    b_id = int(data_parts[2])
+    idx = int(data_parts[3])
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM colors WHERE id = ?", (c_id,))
+    conn.commit()
+    conn.close()
+    
+    try:
+        await query.answer("✅ Rang o'chirildi!")
+    except Exception:
+        pass
+        
+    query.data = f"adelcview_{b_id}_{idx}"
+    await admin_del_color_view(update, context)
 
 async def finish_adding_colors(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -2094,7 +2139,6 @@ if __name__ == "__main__":
         .write_timeout(300)
         .connect_timeout(300)
         .pool_timeout(300)
-        .post_init(post_init_backfill)
         .build()
     )
 
@@ -2247,6 +2291,10 @@ if __name__ == "__main__":
     application.add_handler(add_product_handler)
 
     application.add_handlers([
+        CallbackQueryHandler(admin_del_color_start, pattern="^adelcolor_start$"),
+        CallbackQueryHandler(admin_del_color_view, pattern="^adelcview_"),
+        CallbackQueryHandler(admin_del_color_execute, pattern="^adelcdel_"),
+
         CallbackQueryHandler(admin_del_prod_menu, pattern="^admin_del_prod_menu$"),
         CallbackQueryHandler(admin_del_cat_view, pattern="^adelcat_"),
         CallbackQueryHandler(admin_del_prod_execute, pattern="^adelprod_del_"),
