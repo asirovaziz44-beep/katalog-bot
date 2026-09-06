@@ -379,20 +379,20 @@ async def user_catalog_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if lang == "ru":
         keyboard = [
             [InlineKeyboardButton("🛏 Спальня", callback_data="subcat_yotoqxona")],
-            [InlineKeyboardButton("🍳 Кухня", callback_data="ucat_Oshxona_0"),
-             InlineKeyboardButton("🛋 Мягкая мебель", callback_data="ucat_Yumshoq_mebel_0")],
-            [InlineKeyboardButton("🚪 Прихожая", callback_data="ucat_Koridor_0"),
-             InlineKeyboardButton("📺 ТВ зона", callback_data="ucat_TV_zona_0")],
+            [InlineKeyboardButton("🍳 Кухня", switch_inline_query_current_chat="Oshxona"),
+             InlineKeyboardButton("🛋 Мягкая мебель", switch_inline_query_current_chat="Yumshoq_mebel")],
+            [InlineKeyboardButton("🚪 Прихожая", switch_inline_query_current_chat="Koridor"),
+             InlineKeyboardButton("📺 ТВ зона", switch_inline_query_current_chat="TV_zona")],
             [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_main")]
         ]
         caption_text = "Выберите категорию:"
     else:
         keyboard = [
             [InlineKeyboardButton("🛏 Yotoqxona", callback_data="subcat_yotoqxona")],
-            [InlineKeyboardButton("🍳 Oshxona", callback_data="ucat_Oshxona_0"),
-             InlineKeyboardButton("🛋 Yumshoq mebel", callback_data="ucat_Yumshoq_mebel_0")],
-            [InlineKeyboardButton("🚪 Koridor", callback_data="ucat_Koridor_0"),
-             InlineKeyboardButton("📺 TV zona", callback_data="ucat_TV_zona_0")],
+            [InlineKeyboardButton("🍳 Oshxona", switch_inline_query_current_chat="Oshxona"),
+             InlineKeyboardButton("🛋 Yumshoq mebel", switch_inline_query_current_chat="Yumshoq_mebel")],
+            [InlineKeyboardButton("🚪 Koridor", switch_inline_query_current_chat="Koridor"),
+             InlineKeyboardButton("📺 TV zona", switch_inline_query_current_chat="TV_zona")],
             [InlineKeyboardButton("⬅️ Orqaga", callback_data="back_to_main")]
         ]
         caption_text = "Kategoriyani tanlang:"
@@ -410,17 +410,17 @@ async def user_yotoqxona_submenu(update: Update, context: ContextTypes.DEFAULT_T
     
     if lang == "ru":
         keyboard = [
-            [InlineKeyboardButton("🛏 Спальня для взрослых", callback_data="ucat_Kattalar_yotoqxonasi_0")],
-            [InlineKeyboardButton("🧸 Детская спальня", callback_data="ucat_Bolalar_yotoqxonasi_0")],
-            [InlineKeyboardButton("🚪 Шкаф-купе / Гардероб", callback_data="ucat_Shkaf_kupe_garderob_0")],
+            [InlineKeyboardButton("🛏 Спальня для взрослых", switch_inline_query_current_chat="Kattalar_yotoqxonasi")],
+            [InlineKeyboardButton("🧸 Детская спальня", switch_inline_query_current_chat="Bolalar_yotoqxonasi")],
+            [InlineKeyboardButton("🚪 Шкаф-купе / Гардероб", switch_inline_query_current_chat="Shkaf_kupe_garderob")],
             [InlineKeyboardButton("⬅️ Назад", callback_data="main_catalog")]
         ]
         caption_text = "Выберите раздел спальни:"
     else:
         keyboard = [
-            [InlineKeyboardButton("🛏 Kattalar yotoqxonasi", callback_data="ucat_Kattalar_yotoqxonasi_0")],
-            [InlineKeyboardButton("🧸 Bolalar yotoqxonasi", callback_data="ucat_Bolalar_yotoqxonasi_0")],
-            [InlineKeyboardButton("🚪 Shkaf kupe / Garderob", callback_data="ucat_Shkaf_kupe_garderob_0")],
+            [InlineKeyboardButton("🛏 Kattalar yotoqxonasi", switch_inline_query_current_chat="Kattalar_yotoqxonasi")],
+            [InlineKeyboardButton("🧸 Bolalar yotoqxonasi", switch_inline_query_current_chat="Bolalar_yotoqxonasi")],
+            [InlineKeyboardButton("🚪 Shkaf kupe / Garderob", switch_inline_query_current_chat="Shkaf_kupe_garderob")],
             [InlineKeyboardButton("⬅️ Orqaga", callback_data="main_catalog")]
         ]
         caption_text = "Yotoqxona bo'limini tanlang:"
@@ -531,8 +531,7 @@ async def user_colors_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             has_akril = True
             continue
             
-        safe_b_name = b_name.replace(' ', '_').replace('(', '').replace(')', '').replace('/', '').replace(':', '').replace('__', '_')
-        keyboard.append([InlineKeyboardButton(f"🎨 {b_name}", callback_data=f"ucol_{safe_b_name}_0")])
+        keyboard.append([InlineKeyboardButton(f"🎨 {b_name}", switch_inline_query_current_chat=b_name)])
         
     if has_akril:
         keyboard.insert(0, [InlineKeyboardButton("🎨 Akril", callback_data="subcat_akril")])
@@ -554,8 +553,8 @@ async def user_akril_submenu(update: Update, context: ContextTypes.DEFAULT_TYPE)
     lang = get_current_lang()
     
     keyboard = [
-        [InlineKeyboardButton("🎨 Kashtan", callback_data="ucol_Akril_Kashtan_0")],
-        [InlineKeyboardButton("🎨 Kastaman", callback_data="ucol_Akril_Kastaman_0")],
+        [InlineKeyboardButton("🎨 Kashtan", switch_inline_query_current_chat="Akril: Kashtan")],
+        [InlineKeyboardButton("🎨 Kastaman", switch_inline_query_current_chat="Akril: Kastaman")],
         [InlineKeyboardButton("⬅️ Orqaga", callback_data="main_colors")]
     ]
     
@@ -639,40 +638,57 @@ async def user_color_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def inline_color_search(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
-    Foydalanuvchi chatda '@bot_nomi so'z' deb yozganda ishga tushadi.
-    Natijalar Eman Materials'dagi kabi: kichik rasm + nomi (va bo'lim nomi)
-    ko'rinishida chiqadi. Birontasini bossa, o'sha rasm chatga tashlanadi.
+    Foydalanuvchi chatda '@bot_nomi so'z' deb yozganda (yoki bo'lim tugmasi
+    bosilib, avtomatik ochilganda) ishga tushadi. Natijalar bitta qator
+    ko'rinishida: kichik rasm + nomi/kodi. Birontasini bossa, o'sha rasm
+    HECH QANDAY TASDIQLASHSIZ darhol chatga tashlanadi (Telegram'ning o'zi
+    shunday ishlaydi — bu bosqichni bot tomonidan qo'shimcha sekinlashtirish
+    yo'q). Ham ranglar (colors), ham katalog mahsulotlari (products) shu bir
+    joydan qidiriladi.
     """
     query_text = update.inline_query.query.strip()
-
     conn = get_db_connection()
     cursor = conn.cursor()
+
     if query_text:
         like = f"%{query_text}%"
         cursor.execute(
             "SELECT id, brand, color_name, photo FROM colors "
             "WHERE (brand LIKE ? OR color_name LIKE ?) AND photo IS NOT NULL AND photo != '' "
-            "ORDER BY id DESC LIMIT 50",
+            "ORDER BY id DESC LIMIT 25",
             (like, like)
         )
+        color_rows = cursor.fetchall()
+        cursor.execute(
+            "SELECT id, category, description, photo FROM products "
+            "WHERE (category LIKE ? OR description LIKE ?) AND photo IS NOT NULL AND photo != '' "
+            "ORDER BY id DESC LIMIT 25",
+            (like, like)
+        )
+        product_rows = cursor.fetchall()
     else:
         cursor.execute(
             "SELECT id, brand, color_name, photo FROM colors "
-            "WHERE photo IS NOT NULL AND photo != '' "
-            "ORDER BY id DESC LIMIT 50"
+            "WHERE photo IS NOT NULL AND photo != '' ORDER BY id DESC LIMIT 20"
         )
-    rows = cursor.fetchall()
+        color_rows = cursor.fetchall()
+        cursor.execute(
+            "SELECT id, category, description, photo FROM products "
+            "WHERE photo IS NOT NULL AND photo != '' ORDER BY id DESC LIMIT 20"
+        )
+        product_rows = cursor.fetchall()
     conn.close()
 
     results = []
-    for c_id, brand, c_name, photo in rows:
+
+    for c_id, brand, c_name, photo in color_rows:
         title = c_name if c_name else f"{brand} (#{c_id})"
         caption = f"🎨 {brand}"
         if c_name:
             caption += f"\n{c_name}"
         results.append(
             InlineQueryResultCachedPhoto(
-                id=str(uuid4()),
+                id=f"color_{c_id}",
                 photo_file_id=photo,
                 title=title,
                 description=brand,
@@ -680,7 +696,21 @@ async def inline_color_search(update: Update, context: ContextTypes.DEFAULT_TYPE
             )
         )
 
-    await update.inline_query.answer(results, cache_time=1, is_personal=True)
+    for p_id, cat, desc, photo in product_rows:
+        cat_display = cat.replace('_', ' ')
+        title = desc if desc else f"{cat_display} (#{p_id})"
+        caption = desc if desc else cat_display
+        results.append(
+            InlineQueryResultCachedPhoto(
+                id=f"prod_{p_id}",
+                photo_file_id=photo,
+                title=title,
+                description=cat_display,
+                caption=caption
+            )
+        )
+
+    await update.inline_query.answer(results[:50], cache_time=1, is_personal=True)
 
 async def main_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
