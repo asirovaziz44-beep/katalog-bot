@@ -602,7 +602,10 @@ async def inline_search_handler(update: Update, context: ContextTypes.DEFAULT_TY
         )
         rows = cursor.fetchall()
         for p_id, desc, photo in rows:
-            markup = InlineKeyboardMarkup([[InlineKeyboardButton("❌ O'chirish", callback_data=f"fastdel_prod_{p_id}")]])
+            markup = InlineKeyboardMarkup([
+                [InlineKeyboardButton("❌ O'chirish", callback_data=f"fastdel_prod_{p_id}")],
+                [InlineKeyboardButton("⬅️ Bekor qilish", callback_data="cancel_fastdel")]
+            ])
             caption = f"🆔 <b>ID: {p_id}</b> | 📂 <b>{cat_name}</b>\n\nBu rasmni bazadan o'chirish uchun pastdagi tugmani bosing."
             results.append(
                 InlineQueryResultCachedPhoto(
@@ -630,7 +633,10 @@ async def inline_search_handler(update: Update, context: ContextTypes.DEFAULT_TY
         )
         rows = cursor.fetchall()
         for c_id, c_name, photo in rows:
-            markup = InlineKeyboardMarkup([[InlineKeyboardButton("❌ O'chirish", callback_data=f"fastdel_color_{c_id}")]])
+            markup = InlineKeyboardMarkup([
+                [InlineKeyboardButton("❌ O'chirish", callback_data=f"fastdel_color_{c_id}")],
+                [InlineKeyboardButton("⬅️ Bekor qilish", callback_data="cancel_fastdel")]
+            ])
             caption = f"🆔 <b>ID: {c_id}</b> | 🎨 <b>{brand_name}</b>\nNomi: <b>{c_name if c_name else '(nomsiz)'}</b>\n\nBu rasmni bazadan o'chirish uchun pastdagi tugmani bosing."
             results.append(
                 InlineQueryResultCachedPhoto(
@@ -735,6 +741,14 @@ async def fast_delete_execute(update: Update, context: ContextTypes.DEFAULT_TYPE
             await query.edit_message_text("✅ <b>Ushbu rasm bazadan o'chirildi!</b>", parse_mode="HTML")
         except:
             pass
+
+@admin_only
+async def cancel_fastdel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    try:
+        await query.message.delete()
+    except Exception:
+        await query.answer("Bekor qilindi", show_alert=False)
 
 async def main_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -2214,6 +2228,7 @@ if __name__ == "__main__":
 
     application.add_handlers([
         CallbackQueryHandler(fast_delete_execute, pattern="^fastdel_"),
+        CallbackQueryHandler(cancel_fastdel, pattern="^cancel_fastdel$"),
         CallbackQueryHandler(admin_del_color_start, pattern="^adelcolor_start$"),
         CallbackQueryHandler(admin_del_prod_menu, pattern="^admin_del_prod_menu$"),
         
