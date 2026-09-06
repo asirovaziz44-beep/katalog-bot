@@ -4,7 +4,8 @@ import os
 import logging
 import sqlite3
 import asyncio
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InlineQueryResultCachedPhoto
+from io import BytesIO
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InlineQueryResultCachedDocument
 from telegram.error import RetryAfter, TimedOut, BadRequest
 from telegram.ext import (
     Application,
@@ -45,14 +46,16 @@ if not TOKEN:
     )
 MANAGER_USERNAME = "azizbek_mebel"
 
-# --- ADMIN HIMOYASI: faqat shu ID(lar)dagi foydalanuvchilar admin panelga kira oladi ---
+# Maxfiy kanal ID raqami
+DUMP_CHANNEL_ID = -1004346956457
+
+# --- ADMIN HIMOYASI ---
 ADMIN_IDS = {760912345}
 
 def is_admin(user_id: int) -> bool:
     return user_id in ADMIN_IDS
 
 def admin_only(func):
-    """Faqat ADMIN_IDS ichidagi foydalanuvchilarga ruxsat beradigan dekorator."""
     @wraps(func)
     async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE, *args, **kwargs):
         user_id = update.effective_user.id
@@ -67,7 +70,6 @@ def admin_only(func):
         return await func(update, context, *args, **kwargs)
     return wrapper
 
-# --- RENDER DATA DISK YO'LI ---
 DB_DIR = "/data"
 if not os.path.exists(DB_DIR):
     try:
@@ -82,7 +84,6 @@ def get_db_connection():
     conn.execute("PRAGMA journal_mode=WAL;")
     return conn
 
-# --- TILNI XOTIRADA KESHLASH (har safar DB'ga bormaslik uchun) ---
 _LANG_CACHE = {"value": None}
 
 (
@@ -113,6 +114,10 @@ def init_db():
             photo TEXT
         )
     """)
+    try:
+        cursor.execute("ALTER TABLE colors ADD COLUMN doc_file_id TEXT")
+    except Exception:
+        pass
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS brands (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -563,7 +568,60 @@ async def user_akril_submenu(update: Update, context: ContextTypes.DEFAULT_TYPE)
         pass
     await context.bot.send_message(chat_id=query.message.chat_id, text=cap, reply_markup=InlineKeyboardMarkup(keyboard))
 
-# --- Yangilangan Rang qidiruv (InlineQuery) funksiyasi ---
+async def ensure_doc_file_id(bot, color_id, photo_file_id, existing_doc_id=None):
+    if existing_doc_id:
+        return existing_doc_id
+
+    try:
+        tg_file = await bot.get_file(photo_file_id)
+        buf = BytesIO()
+        await tg_file.download_to_memory(out=buf)
+        buf.seek(0)
+        msg = await bot.send_document(
+            chat_id=DUMP_CHANNEL_ID,
+            document=buf,
+            filename=f"rang_{color_id}.jpg",
+            disable_notification=True
+        )
+        doc_id = msg.document.file_id
+        
+        # Kanaldagi xabarni o'chirib tashlaymiz (ixtiyoriy, bazada ID saqlanib qoladi)
+        try:
+            await msg.delete()
+        except Exception:
+            pass
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("UPDATE colors SET doc_file_id = ? WHERE id = ?", (doc_id, color_id))
+        conn.commit()
+        conn.close()
+        return doc_id
+    except Exception as e:
+        logging.warning(f"Rang #{color_id} uchun doc_file_id olishda xato: {e}")
+        return None
+
+async def backfill_doc_file_ids(bot):
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id, photo FROM colors "
+            "WHERE (doc_file_id IS NULL OR doc_file_id = '') AND photo IS NOT NULL AND photo != ''"
+        )
+        rows = cursor.fetchall()
+        conn.close()
+    except Exception as e:
+        logging.warning(f"Ranglarni fonda tayyorlashda xato: {e}")
+        return
+
+    for c_id, photo in rows:
+        await ensure_doc_file_id(bot, c_id, photo)
+        await asyncio.sleep(0.3)
+
+async def post_init_backfill(application: Application):
+    asyncio.create_task(backfill_doc_file_ids(application.bot))
+
 async def inline_color_search(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query_text = update.inline_query.query.strip()
 
@@ -572,14 +630,14 @@ async def inline_color_search(update: Update, context: ContextTypes.DEFAULT_TYPE
     if query_text:
         like = f"%{query_text}%"
         cursor.execute(
-            "SELECT id, brand, color_name, photo FROM colors "
+            "SELECT id, brand, color_name, photo, doc_file_id FROM colors "
             "WHERE (brand LIKE ? OR color_name LIKE ?) AND photo IS NOT NULL AND photo != '' "
             "ORDER BY id DESC LIMIT 50",
             (like, like)
         )
     else:
         cursor.execute(
-            "SELECT id, brand, color_name, photo FROM colors "
+            "SELECT id, brand, color_name, photo, doc_file_id FROM colors "
             "WHERE photo IS NOT NULL AND photo != '' "
             "ORDER BY id DESC LIMIT 50"
         )
@@ -587,19 +645,23 @@ async def inline_color_search(update: Update, context: ContextTypes.DEFAULT_TYPE
     conn.close()
 
     results = []
-    for c_id, brand, c_name, photo in rows:
+    for c_id, brand, c_name, photo, doc_file_id in rows:
         title = c_name if c_name else f"{brand} (#{c_id})"
         caption = f"🎨 {brand}"
         if c_name:
             caption += f"\n{c_name}"
 
-        # To'g'ridan-to'g'ri rasmni o'zidan foydalanib ro'yxat shakllantiramiz
+        # Agar bu rasm Document ga o'tmagan bo'lsa, uni yashirin kanal orqali o'tkazamiz
+        final_doc_id = doc_file_id or await ensure_doc_file_id(context.bot, c_id, photo)
+        if not final_doc_id:
+            continue
+
         results.append(
-            InlineQueryResultCachedPhoto(
+            InlineQueryResultCachedDocument(
                 id=f"color_{c_id}",
                 title=title,
                 description=brand,
-                photo_file_id=photo,
+                document_file_id=final_doc_id,
                 caption=caption
             )
         )
@@ -1972,6 +2034,7 @@ if __name__ == "__main__":
         .write_timeout(300)
         .connect_timeout(300)
         .pool_timeout(300)
+        .post_init(post_init_backfill)
         .build()
     )
 
