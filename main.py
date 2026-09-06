@@ -634,6 +634,8 @@ async def inline_color_search(update: Update, context: ContextTypes.DEFAULT_TYPE
                 title=title,
                 description=brand,
                 thumbnail_url=photo_url,
+                thumbnail_width=200,
+                thumbnail_height=200,
                 input_message_content=InputTextMessageContent(
                     message_text=message_text,
                     parse_mode="HTML"
