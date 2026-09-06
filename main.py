@@ -18,17 +18,19 @@ def keep_alive():
 import logging
 import sqlite3
 import asyncio
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InlineQueryResultCachedPhoto
 from telegram.error import RetryAfter, TimedOut, BadRequest
 from telegram.ext import (
     Application,
     CommandHandler,
     CallbackQueryHandler,
     MessageHandler,
+    InlineQueryHandler,
     filters,
     ContextTypes,
     ConversationHandler
 )
+from uuid import uuid4
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
@@ -89,8 +91,9 @@ _LANG_CACHE = {"value": None}
     ADD_CAT, ADD_PHOTO, ADD_DESC, 
     ADD_BRAND_MENU, ADD_NEW_BRAND, ADD_COLOR_PHOTO, ADD_COLOR_NAME,
     SET_LOGO, SET_INFO, SET_WELCOME, DEL_BRAND, EDIT_COLOR_NAME,
-    ADD_VIDEO_CAT, ADD_VIDEO_FILE, ADD_VIDEO_DESC, BROADCAST_TEXT
-) = range(16)
+    ADD_VIDEO_CAT, ADD_VIDEO_FILE, ADD_VIDEO_DESC, BROADCAST_TEXT,
+    EDIT_COLOR_BRAND, EDIT_COLOR_SELECT
+) = range(18)
 
 def init_db():
     conn = get_db_connection()
@@ -603,7 +606,7 @@ async def user_color_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT color_name, photo FROM colors WHERE brand = ? ORDER BY id DESC", (selected_brand,))
+    cursor.execute("SELECT id FROM colors WHERE brand = ?", (selected_brand,))
     colors = cursor.fetchall()
     conn.close()
     
@@ -615,43 +618,69 @@ async def user_color_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
         msg = f"Для раздела '{selected_brand}' цвета еще не добавлены." if lang == "ru" else f"'{selected_brand}' bo'limi uchun ranglar hali kiritilmagan."
         await context.bot.send_message(chat_id=query.message.chat_id, text=msg, reply_markup=back_kb)
         return
-        
-    limit = 5
-    total_pages = (len(colors) + limit - 1) // limit
     
-    if page >= total_pages:
-        page = total_pages - 1
-    if page < 0:
-        page = 0
-        
-    start_idx = page * limit
-    end_idx = start_idx + limit
-    page_colors = colors[start_idx:end_idx]
+    # Ranglar endi alohida-alohida rasm bo'lib emas, balki Telegram'ning
+    # o'zida (Eman Materials'dagi kabi) kichik rasm + nomi bilan spisok
+    # (inline mode) ko'rinishida chiqadi. Tugma bosilsa, pastdagi yozish
+    # maydonida shu brend uchun tayyor qidiruv ochiladi.
+    if lang == "ru":
+        cap = f"🎨 Раздел: <b>{selected_brand}</b>\n\nНажмите на кнопку ниже, чтобы открыть список цветов:"
+        list_btn_text = "📋 Открыть список"
+    else:
+        cap = f"🎨 Bo'lim: <b>{selected_brand}</b>\n\nRanglar ro'yxatini ochish uchun pastdagi tugmani bosing:"
+        list_btn_text = "📋 Ro'yxatni ochish"
+    
+    keyboard = [
+        [InlineKeyboardButton(list_btn_text, switch_inline_query_current_chat=selected_brand)],
+        [InlineKeyboardButton(back_text_str, callback_data=back_callback)]
+    ]
+    
+    await context.bot.send_message(chat_id=query.message.chat_id, text=cap, parse_mode="HTML", reply_markup=InlineKeyboardMarkup(keyboard))
 
-    for c in page_colors:
-        c_name, photo = c[0], c[1]
-        caption = f"🎨 Раздел: <b>{selected_brand}</b>" if lang == "ru" else f"🎨 Bo'lim: <b>{selected_brand}</b>"
+async def inline_color_search(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Foydalanuvchi chatda '@bot_nomi so'z' deb yozganda ishga tushadi.
+    Natijalar Eman Materials'dagi kabi: kichik rasm + nomi (va bo'lim nomi)
+    ko'rinishida chiqadi. Birontasini bossa, o'sha rasm chatga tashlanadi.
+    """
+    query_text = update.inline_query.query.strip()
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    if query_text:
+        like = f"%{query_text}%"
+        cursor.execute(
+            "SELECT id, brand, color_name, photo FROM colors "
+            "WHERE (brand LIKE ? OR color_name LIKE ?) AND photo IS NOT NULL AND photo != '' "
+            "ORDER BY id DESC LIMIT 50",
+            (like, like)
+        )
+    else:
+        cursor.execute(
+            "SELECT id, brand, color_name, photo FROM colors "
+            "WHERE photo IS NOT NULL AND photo != '' "
+            "ORDER BY id DESC LIMIT 50"
+        )
+    rows = cursor.fetchall()
+    conn.close()
+
+    results = []
+    for c_id, brand, c_name, photo in rows:
+        title = c_name if c_name else f"{brand} (#{c_id})"
+        caption = f"🎨 {brand}"
         if c_name:
-            caption += f"\nКод/Название: <b>{c_name}</b>" if lang == "ru" else f"\nRang nomi/kodi: <b>{c_name}</b>"
-            
-        if photo:
-            await context.bot.send_photo(chat_id=query.message.chat_id, photo=photo, caption=caption, parse_mode="HTML")
-        else:
-            await context.bot.send_message(chat_id=query.message.chat_id, text=caption, parse_mode="HTML")
-            
-    page_buttons = []
-    for i in range(total_pages):
-        btn_text = f"• {i+1} •" if i == page else str(i+1)
-        page_buttons.append(InlineKeyboardButton(btn_text, callback_data=f"ucol_{brand_clean_query}_{i}"))
-        
-    keyboard_layout = []
-    chunk_size = 5
-    for i in range(0, len(page_buttons), chunk_size):
-        keyboard_layout.append(page_buttons[i:i + chunk_size])
-        
-    keyboard_layout.append([InlineKeyboardButton(back_text_str, callback_data=back_callback)])
-    
-    await context.bot.send_message(chat_id=query.message.chat_id, text="Sahifani tanlang:" if lang != "ru" else "Выберите страницу:", reply_markup=InlineKeyboardMarkup(keyboard_layout))
+            caption += f"\n{c_name}"
+        results.append(
+            InlineQueryResultCachedPhoto(
+                id=str(uuid4()),
+                photo_file_id=photo,
+                title=title,
+                description=brand,
+                caption=caption
+            )
+        )
+
+    await update.inline_query.answer(results, cache_time=1, is_personal=True)
 
 async def main_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -1122,6 +1151,7 @@ async def admin_brands_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         [InlineKeyboardButton("➕ Yangi brend/bo'lim qo'shish", callback_data="abrand_add"),
          InlineKeyboardButton("🎨 Brendga rang/rasm qo'shish", callback_data="acolor_start")],
+        [InlineKeyboardButton("✏️ Rang nomi/kodini o'zgartirish", callback_data="acolor_edit_start")],
         [InlineKeyboardButton("🗑 Brendni o'chirish", callback_data="abrand_del")],
         [InlineKeyboardButton("⬅️ Orqaga", callback_data="back_to_admin")]
     ]
@@ -1333,6 +1363,128 @@ def get_brand_id(brand_name):
     res = cursor.fetchone()
     conn.close()
     return res[0] if res else 1
+
+@admin_only
+async def admin_edit_color_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, brand_name FROM brands")
+    brands = cursor.fetchall()
+    conn.close()
+
+    back_kb = InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Orqaga", callback_data="admin_brands_menu")]])
+    try:
+        await query.message.delete()
+    except:
+        pass
+
+    if not brands:
+        await context.bot.send_message(chat_id=query.message.chat_id, text="Hali brend/bo'lim yo'q.", reply_markup=back_kb)
+        return ConversationHandler.END
+
+    keyboard = []
+    row = []
+    for b in brands:
+        row.append(InlineKeyboardButton(b[1], callback_data=f"ecbrand_{b[0]}"))
+        if len(row) == 2:
+            keyboard.append(row)
+            row = []
+    if row:
+        keyboard.append(row)
+    keyboard.append([InlineKeyboardButton("⬅️ Orqaga", callback_data="admin_brands_menu")])
+
+    await context.bot.send_message(chat_id=query.message.chat_id, text="Qaysi bo'limdagi rangni tahrirlaysiz?", reply_markup=InlineKeyboardMarkup(keyboard))
+    return EDIT_COLOR_BRAND
+
+async def admin_edit_color_pick_brand(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    b_id = query.data.split("_")[1]
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT brand_name FROM brands WHERE id = ?", (b_id,))
+    res = cursor.fetchone()
+    if not res:
+        conn.close()
+        try:
+            await query.message.delete()
+        except:
+            pass
+        await context.bot.send_message(chat_id=query.message.chat_id, text="Xatolik yuz berdi.")
+        return ConversationHandler.END
+
+    brand_name = res[0]
+    cursor.execute("SELECT id, color_name FROM colors WHERE brand = ? ORDER BY id DESC", (brand_name,))
+    colors = cursor.fetchall()
+    conn.close()
+
+    try:
+        await query.message.delete()
+    except:
+        pass
+
+    back_kb = InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Orqaga", callback_data="acolor_edit_start")]])
+    if not colors:
+        await context.bot.send_message(chat_id=query.message.chat_id, text=f"'{brand_name}' bo'limida hali rasm yo'q.", reply_markup=back_kb)
+        return ConversationHandler.END
+
+    keyboard = []
+    for c_id, c_name in colors:
+        label = c_name if c_name else f"#{c_id} (nomsiz)"
+        keyboard.append([InlineKeyboardButton(f"✏️ {label}", callback_data=f"eccolor_{c_id}")])
+    keyboard.append([InlineKeyboardButton("⬅️ Orqaga", callback_data="acolor_edit_start")])
+
+    await context.bot.send_message(chat_id=query.message.chat_id, text=f"'{brand_name}' — tahrirlash uchun rangni tanlang:", reply_markup=InlineKeyboardMarkup(keyboard))
+    return EDIT_COLOR_SELECT
+
+async def admin_edit_color_pick_color(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    c_id = query.data.split("_")[1]
+    context.user_data['edit_color_id'] = c_id
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT brand, color_name, photo FROM colors WHERE id = ?", (c_id,))
+    res = cursor.fetchone()
+    conn.close()
+
+    try:
+        await query.message.delete()
+    except:
+        pass
+
+    if not res:
+        await context.bot.send_message(chat_id=query.message.chat_id, text="Xatolik: rang topilmadi.")
+        return ConversationHandler.END
+
+    brand, c_name, photo = res
+    cur_name = c_name if c_name else "(nomsiz)"
+    text = f"Bo'lim: <b>{brand}</b>\nJoriy nom/kod: <b>{cur_name}</b>\n\n✏️ Yangi nom yoki kodni yozib yuboring:"
+
+    if photo:
+        await context.bot.send_photo(chat_id=query.message.chat_id, photo=photo, caption=text, parse_mode="HTML")
+    else:
+        await context.bot.send_message(chat_id=query.message.chat_id, text=text, parse_mode="HTML")
+    return EDIT_COLOR_NAME
+
+async def admin_edit_color_save(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    new_name = update.message.text.strip()
+    c_id = context.user_data.get('edit_color_id')
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE colors SET color_name = ? WHERE id = ?", (new_name, c_id))
+    conn.commit()
+    conn.close()
+
+    lang = get_current_lang()
+    await update.message.reply_text(f"✅ Nom/kod yangilandi: {new_name}", reply_markup=main_menu_keyboard(lang))
+    return ConversationHandler.END
 
 async def finish_adding_colors(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -1740,9 +1892,9 @@ async def admin_del_prod_execute(update: Update, context: ContextTypes.DEFAULT_T
     query = update.callback_query
     
     data_parts = query.data.split("_")
-    prod_id = data_parts[-2]
-    current_page = int(data_parts[-1])
-    cat = "_".join(data_parts[2:-2])
+    cat = data_parts[2]
+    prod_id = data_parts[3]
+    current_page = int(data_parts[4])
     
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -1859,9 +2011,9 @@ async def admin_del_video_execute(update: Update, context: ContextTypes.DEFAULT_
     query = update.callback_query
     
     data_parts = query.data.split("_")
-    v_id = data_parts[-2]
-    current_page = int(data_parts[-1])
-    cat = "_".join(data_parts[2:-2])
+    cat = data_parts[3]
+    v_id = data_parts[4]
+    current_page = int(data_parts[5])
     
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -1908,6 +2060,7 @@ if __name__ == "__main__":
     application.add_handler(CallbackQueryHandler(admin_users_list, pattern="^admin_users_list_"))
     application.add_handler(CallbackQueryHandler(admin_brands_menu, pattern="^admin_brands_menu$"))
     application.add_handler(CallbackQueryHandler(noop_handler, pattern="^noop$"))
+    application.add_handler(InlineQueryHandler(inline_color_search))
     
     application.add_handler(CallbackQueryHandler(broadcast_delete, pattern="^broadcast_delete$"))
     application.add_handler(CallbackQueryHandler(notify_update_confirm, pattern="^notify_update_confirm$"))
@@ -2002,6 +2155,20 @@ if __name__ == "__main__":
         fallbacks=[CommandHandler("cancel", cancel), CallbackQueryHandler(admin_brands_menu, pattern="^admin_brands_menu$")]
     )
     application.add_handler(add_color_handler)
+
+    edit_color_handler = ConversationHandler(
+        entry_points=[CallbackQueryHandler(admin_edit_color_start, pattern="^acolor_edit_start$")],
+        states={
+            EDIT_COLOR_BRAND: [CallbackQueryHandler(admin_edit_color_pick_brand, pattern="^ecbrand_")],
+            EDIT_COLOR_SELECT: [
+                CallbackQueryHandler(admin_edit_color_pick_color, pattern="^eccolor_"),
+                CallbackQueryHandler(admin_edit_color_start, pattern="^acolor_edit_start$")
+            ],
+            EDIT_COLOR_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, admin_edit_color_save)]
+        },
+        fallbacks=[CommandHandler("cancel", cancel), CallbackQueryHandler(admin_brands_menu, pattern="^admin_brands_menu$")]
+    )
+    application.add_handler(edit_color_handler)
 
     add_product_handler = ConversationHandler(
         entry_points=[CallbackQueryHandler(admin_add_prod, pattern="^admin_add_prod$")],
